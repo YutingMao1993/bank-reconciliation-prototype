@@ -62,6 +62,7 @@ function evidence(s) {
 function resolve(ids, action, label) {
   state.history.push({ ...state.resolved });
   ids.forEach(id => state.resolved[id] = { action, label, time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) });
+  state.tab = openItems().length ? 'open' : 'resolved';
   state.selected = openItems()[0]?.id || ids[0];
   render();
   toast(label, true);
@@ -71,6 +72,7 @@ function undoLast() {
   const previous = state.history.pop();
   if (!previous) return;
   state.resolved = previous;
+  state.tab = 'open';
   state.selected = openItems()[0]?.id || state.selected;
   closeModal();
   render();
@@ -96,14 +98,16 @@ function render() {
   $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
   $('bankCount').textContent = open.filter(item => item.side === 'bank' && item.kind).length;
   $('ledgerCount').textContent = open.filter(item => item.side === 'ledger' && item.kind).length;
-  $('remainingText').textContent = `${open.length} open transaction${open.length === 1 ? '' : 's'}`;
   $('openTabCount').textContent = open.length;
   $('resolvedTabCount').textContent = resolved;
   $('aiMatchBtn').textContent = state.aiScanned ? `✦ AI Match · ${suggestions.length}` : '✦ AI Match';
   $('finishBtn').disabled = resolved !== 14;
   $('adjustedLedger').textContent = money(487346.86 + (state.resolved.b6 ? -45 : 0) + (state.resolved.b7 ? 12.5 : 0));
   $('balanceStatus').textContent = resolved === 14 ? 'Balances agree · $0.00 difference' : `${open.length} items to review`;
-  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === state.tab));
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.tab === state.tab);
+    tab.setAttribute('aria-selected', String(tab.dataset.tab === state.tab));
+  });
   renderList();
   renderDetail();
 }
@@ -117,27 +121,30 @@ function rowBadge(item) {
 
 function renderList() {
   const query = $('search').value.trim().toLowerCase();
-  const filter = $('sideFilter').value;
   const shown = items.filter(item =>
     (state.tab === 'open' ? !state.resolved[item.id] : !!state.resolved[item.id]) &&
-    (filter === 'all' || item.side === filter) &&
     `${item.name} ${item.ref} ${item.amount}`.toLowerCase().includes(query)
   );
-  const groups = [['Bank statement', shown.filter(item => item.side === 'bank')], ['General ledger', shown.filter(item => item.side === 'ledger')]];
-  $('itemList').innerHTML = shown.length ? groups.filter(([, rows]) => rows.length).map(([label, rows]) => `
-    <div class="section-label">${label}</div>
-    ${rows.map(item => `<button type="button" class="row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.name}, ${money(item.amount)}">
+  for (const side of ['bank', 'ledger']) {
+    const rows = shown.filter(item => item.side === side);
+    const label = state.tab === 'open' ? 'open' : 'resolved';
+    $(`${side}VisibleCount`).textContent = `${rows.length} ${label}`;
+    $(`${side}List`).innerHTML = rows.length ? rows.map(item => `<button type="button" class="row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.name}, ${money(item.amount)}">
       <span class="type-icon ${item.side === 'ledger' ? 'ledger' : ''}">${item.side === 'bank' ? '↘' : '▤'}</span>
       <span class="row-main"><span class="row-title">${item.name}</span><span class="row-meta">${item.date} · ${item.ref}</span></span>
       <span class="row-right"><span class="amount">${money(item.amount)}</span><br><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
-    </button>`).join('')}
-  `).join('') : `<div class="empty-list">${state.tab === 'open' ? 'No open transactions in this view.' : 'No resolved transactions yet.'}</div>`;
+    </button>`).join('') : `<div class="empty-list">No ${label} ${side === 'bank' ? 'bank' : 'ledger'} transactions${query ? ' match this search' : ''}.</div>`;
+  }
   document.querySelectorAll('.row').forEach(row => row.onclick = () => { state.selected = row.dataset.id; render(); });
 }
 
 function renderDetail() {
   const item = items.find(entry => entry.id === state.selected);
-  if (!item) { $('detailBody').innerHTML = '<p class="small-muted">Choose a transaction to review.</p>'; return; }
+  if (!item) {
+    $('detailIndex').textContent = '';
+    $('detailBody').innerHTML = `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'Choose a transaction to review.'}</p>`;
+    return;
+  }
   $('detailIndex').textContent = `Item ${items.indexOf(item) + 1} of 14`;
   const suggestion = suggestionFor(item);
   const partner = suggestion && (suggestion.bank.id === item.id ? suggestion.ledger : suggestion.bank);
@@ -205,11 +212,10 @@ function showFinish() {
 }
 
 $('search').addEventListener('input', renderList);
-$('sideFilter').addEventListener('change', renderList);
 document.querySelectorAll('.tab').forEach(tab => tab.onclick = () => {
   state.tab = tab.dataset.tab;
   const candidates = items.filter(item => state.tab === 'open' ? !state.resolved[item.id] : !!state.resolved[item.id]);
-  if (candidates.length && !candidates.some(item => item.id === state.selected)) state.selected = candidates[0].id;
+  if (!candidates.some(item => item.id === state.selected)) state.selected = candidates[0]?.id || null;
   render();
 });
 $('resetBtn').onclick = () => {
@@ -219,7 +225,6 @@ $('resetBtn').onclick = () => {
   state.tab = 'open';
   state.aiScanned = false;
   $('search').value = '';
-  $('sideFilter').value = 'all';
   closeModal();
   render();
   toast('Demo reset to 14 open transactions');
