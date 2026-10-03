@@ -35,6 +35,8 @@ This prototype has hardcoded transactions, in-memory changes, no bank or ledger 
 
 No dependencies or build step are required. The application is HTML, CSS, and JavaScript in `dist/index.html`. The site manifest in `.openai/hosting.json` points hosting to `dist`.
 
+The visual palette and Denim Regular/Medium font were sampled from [Campfire's public website](https://campfire.ai/) in October 2026 for this design exercise. The two font files are included locally so the prototype renders consistently.
+
 ## AI tool discussion prompt
 
 For the interview question about code you kept but do not fully understand, inspect the `render()` and `resolve()` functions and explain how a state change updates the queue, counters, and detail panel. If any part remains unclear after reviewing it, describe that specific part honestly and how you would verify it before shipping. Do not claim uncertainty you do not actually have.
