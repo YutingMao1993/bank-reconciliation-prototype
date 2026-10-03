@@ -66,15 +66,19 @@ function computeSuggestions() {
 
 function visibleSuggestions() { return state.aiScanned ? computeSuggestions() : []; }
 function suggestionFor(item) { return visibleSuggestions().find(s => s.bank.id === item.id || s.ledger.id === item.id); }
+function aiFilterIds() {
+  if (!state.aiScanned) return new Set(openItems().filter(item => !item.kind && !rejectedFor(item)).map(item => item.id));
+  return new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
+}
 function tabItems(tab) {
   if (tab === 'resolved') return items.filter(item => !!state.resolved[item.id]);
   const open = openItems();
   if (tab === 'suggested') {
-    const suggestedIds = new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
+    const suggestedIds = aiFilterIds();
     return open.filter(item => suggestedIds.has(item.id));
   }
   if (tab === 'bank-only' || tab === 'ledger-only') {
-    const suggestedIds = new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
+    const suggestedIds = aiFilterIds();
     return open.filter(item => item.side === (tab === 'bank-only' ? 'bank' : 'ledger') &&
       !suggestedIds.has(item.id));
   }
@@ -175,8 +179,8 @@ function render() {
   $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
   $('bankCount').textContent = tabItems('bank-only').length;
   $('ledgerCount').textContent = tabItems('ledger-only').length;
-  $('bankSub').textContent = state.aiScanned ? 'Need a ledger entry or exclusion' : 'Run AI Match to classify';
-  $('ledgerSub').textContent = state.aiScanned ? 'Review timing or exclusion' : 'Run AI Match to classify';
+  $('bankSub').textContent = 'Need a ledger entry or exclusion';
+  $('ledgerSub').textContent = 'Review timing or exclusion';
   $('openTabCount').textContent = open.length;
   $('allFilterCount').textContent = open.length;
   $('suggestedTabCount').textContent = tabItems('suggested').length;
