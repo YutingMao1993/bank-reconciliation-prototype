@@ -16,7 +16,7 @@ const items = [
   { id: 'l7', side: 'ledger', date: 'Sep 29', name: 'Office supplies check', amount: -860, ref: 'Check · #1048', kind: 'check' }
 ];
 
-const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', history: [], activity: [], aiScanned: false, toastTimer: null };
+const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', filter: 'open', history: [], activity: [], aiScanned: false, toastTimer: null };
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const listMoney = amount => amount < 0 ? `(${money(-amount)})` : `+${money(amount)}`;
@@ -76,16 +76,21 @@ function tabItems(tab) {
   if (tab === 'bank-only' || tab === 'ledger-only') {
     const suggestedIds = new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
     return open.filter(item => item.side === (tab === 'bank-only' ? 'bank' : 'ledger') &&
-      (item.kind || state.aiScanned && !suggestedIds.has(item.id)));
+      !suggestedIds.has(item.id));
   }
   return open;
 }
+function viewItems() { return tabItems(state.tab === 'resolved' ? 'resolved' : state.filter); }
+function displayItems() {
+  const query = $('search').value.trim().toLowerCase();
+  return viewItems().filter(item => `${item.name} ${item.ref} ${item.amount}`.toLowerCase().includes(query));
+}
 function selectNextInTab() {
-  const next = tabItems(state.tab)[0];
+  const next = displayItems()[0];
   if (next) { state.selected = next.id; return; }
   if (state.tab === 'open' && !openItems().length) {
     state.tab = 'resolved';
-    state.selected = tabItems('resolved')[0]?.id || null;
+    state.selected = displayItems()[0]?.id || null;
   } else {
     state.selected = null;
   }
@@ -97,7 +102,7 @@ function evidence(s) {
 }
 
 function resolve(ids, action, label, origin = 'Manual review', note = '') {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, selected: state.selected });
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected });
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   ids.forEach(id => state.resolved[id] = { action, label, time, origin, note });
   state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note });
@@ -107,12 +112,14 @@ function resolve(ids, action, label, origin = 'Manual review', note = '') {
 }
 
 function rejectSuggestion(suggestion, selectedId) {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, selected: state.selected });
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected });
   state.rejectedPairs.add(pairKey(suggestion.bank.id, suggestion.ledger.id));
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   state.activity.unshift({ label: `Rejected suggested match: ${suggestion.bank.name} ↔ ${suggestion.ledger.name}`, origin: 'AI suggested · Maya rejected', time, actor: 'Maya Chen', note: '' });
   state.selected = selectedId;
-  state.tab = items.find(item => item.id === selectedId).side === 'bank' ? 'bank-only' : 'ledger-only';
+  state.tab = 'open';
+  state.filter = items.find(item => item.id === selectedId).side === 'bank' ? 'bank-only' : 'ledger-only';
+  $('search').value = '';
   closeModal();
   render();
   toast('Suggestion rejected. Choose a resolution for each item.', true);
@@ -125,6 +132,7 @@ function undoLast() {
   state.rejectedPairs = previous.rejectedPairs;
   state.activity = previous.activity;
   state.tab = previous.tab;
+  state.filter = previous.filter;
   state.selected = previous.selected;
   closeModal();
   render();
@@ -167,7 +175,10 @@ function render() {
   $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
   $('bankCount').textContent = tabItems('bank-only').length;
   $('ledgerCount').textContent = tabItems('ledger-only').length;
+  $('bankSub').textContent = state.aiScanned ? 'Need a ledger entry or exclusion' : 'Run AI Match to classify';
+  $('ledgerSub').textContent = state.aiScanned ? 'Review timing or exclusion' : 'Run AI Match to classify';
   $('openTabCount').textContent = open.length;
+  $('allFilterCount').textContent = open.length;
   $('suggestedTabCount').textContent = tabItems('suggested').length;
   $('bankOnlyTabCount').textContent = tabItems('bank-only').length;
   $('ledgerOnlyTabCount').textContent = tabItems('ledger-only').length;
@@ -187,6 +198,12 @@ function render() {
     tab.classList.toggle('active', tab.dataset.tab === state.tab);
     tab.setAttribute('aria-selected', String(tab.dataset.tab === state.tab));
   });
+  $('openFilters').hidden = state.tab === 'resolved';
+  document.querySelectorAll('.filter-pill').forEach(button => {
+    const active = button.dataset.filter === state.filter;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
   renderList();
   renderDetail();
   renderActivity();
@@ -202,16 +219,14 @@ function rowBadge(item) {
 }
 
 function renderList() {
-  const query = $('search').value.trim().toLowerCase();
-  const shown = tabItems(state.tab).filter(item =>
-    `${item.name} ${item.ref} ${item.amount}`.toLowerCase().includes(query)
-  ).sort((a, b) => a.side === b.side ? dateNumber(b) - dateNumber(a) : a.side === 'bank' ? -1 : 1);
-  const label = { open: 'open', suggested: 'suggested', 'bank-only': 'bank-only', 'ledger-only': 'ledger-only', resolved: 'resolved' }[state.tab];
+  const query = $('search').value.trim();
+  const shown = displayItems().sort((a, b) => a.side === b.side ? dateNumber(b) - dateNumber(a) : a.side === 'bank' ? -1 : 1);
+  const label = state.tab === 'resolved' ? 'resolved' : state.filter;
   $('transactionsVisibleCount').textContent = `${shown.length} ${label}`;
   $('transactionList').innerHTML = shown.length ? shown.map(item => `<button type="button" class="row combined-row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.side === 'bank' ? 'Bank statement' : 'General ledger'}: ${item.name}, ${money(item.amount)}">
     <span class="combined-main"><span class="combined-title"><span class="source-chip ${item.side}">${item.side === 'bank' ? 'BANK' : 'LEDGER'}</span><span class="row-title">${item.name}</span></span><span class="row-meta">${item.date} &nbsp; ${item.ref}</span></span>
     <span class="combined-right"><span class="amount ${item.amount < 0 ? 'negative' : 'positive'}">${listMoney(item.amount)}</span><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
-  </button>`).join('') : `<div class="empty-list">${query ? 'No transactions match this search.' : state.tab === 'suggested' && !state.aiScanned ? 'Run AI Match to see suggested transactions.' : `No transactions in ${label}.`}</div>`;
+  </button>`).join('') : `<div class="empty-list">${query ? 'No transactions match this search.' : state.tab === 'open' && state.filter === 'suggested' && !state.aiScanned ? 'Run AI Match to see suggested transactions.' : `No transactions in ${label}.`}</div>`;
   document.querySelectorAll('.row').forEach(row => row.onclick = () => { state.selected = row.dataset.id; render(); });
 }
 
@@ -219,7 +234,7 @@ function renderDetail() {
   const item = items.find(entry => entry.id === state.selected);
   if (!item) {
     $('detailIndex').textContent = '';
-    $('detailBody').innerHTML = state.tab === 'suggested' && !state.aiScanned ? '<div class="ai-launch"><div class="section-title">Find possible matches</div><p>Run AI Match to see suggested bank and ledger pairs here.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>' : `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'No transactions in this view.'}</p>`;
+    $('detailBody').innerHTML = state.tab === 'open' && state.filter === 'suggested' && !state.aiScanned ? '<div class="ai-launch"><div class="section-title">Find possible matches</div><p>Run AI Match to see suggested bank and ledger pairs here.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>' : `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'No transactions in this view.'}</p>`;
     if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
     return;
   }
@@ -317,7 +332,9 @@ function showAIMatches() {
   $('aiClose').onclick = closeModal;
   document.querySelectorAll('[data-review]').forEach(button => button.onclick = () => {
     state.selected = button.dataset.review;
-    state.tab = 'suggested';
+    state.tab = 'open';
+    state.filter = 'suggested';
+    $('search').value = '';
     closeModal();
     render();
   });
@@ -335,7 +352,7 @@ function showAIMatches() {
 
 function runAIMatch() {
   state.aiScanned = true;
-  if (!tabItems(state.tab).some(item => item.id === state.selected)) state.selected = tabItems(state.tab)[0]?.id || null;
+  if (!displayItems().some(item => item.id === state.selected)) state.selected = displayItems()[0]?.id || null;
   render();
   showAIMatches();
 }
@@ -349,10 +366,21 @@ function showFinish() {
   $('resetModal').onclick = () => $('resetBtn').click();
 }
 
-$('search').addEventListener('input', renderList);
+$('search').addEventListener('input', () => {
+  const candidates = displayItems();
+  if (!candidates.some(item => item.id === state.selected)) state.selected = candidates[0]?.id || null;
+  render();
+});
 document.querySelectorAll('.tab').forEach(tab => tab.onclick = () => {
   state.tab = tab.dataset.tab;
-  const candidates = tabItems(state.tab);
+  const candidates = displayItems();
+  if (!candidates.some(item => item.id === state.selected)) state.selected = candidates[0]?.id || null;
+  render();
+});
+document.querySelectorAll('.filter-pill').forEach(button => button.onclick = () => {
+  state.tab = 'open';
+  state.filter = button.dataset.filter;
+  const candidates = displayItems();
   if (!candidates.some(item => item.id === state.selected)) state.selected = candidates[0]?.id || null;
   render();
 });
@@ -363,6 +391,7 @@ $('resetBtn').onclick = () => {
   state.activity = [];
   state.selected = 'b1';
   state.tab = 'open';
+  state.filter = 'open';
   state.aiScanned = false;
   $('search').value = '';
   closeModal();
