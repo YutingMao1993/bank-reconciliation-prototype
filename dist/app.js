@@ -65,6 +65,30 @@ function computeSuggestions() {
 
 function visibleSuggestions() { return state.aiScanned ? computeSuggestions() : []; }
 function suggestionFor(item) { return visibleSuggestions().find(s => s.bank.id === item.id || s.ledger.id === item.id); }
+function tabItems(tab) {
+  if (tab === 'resolved') return items.filter(item => !!state.resolved[item.id]);
+  const open = openItems();
+  if (tab === 'suggested') {
+    const suggestedIds = new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
+    return open.filter(item => suggestedIds.has(item.id));
+  }
+  if (tab === 'bank-only' || tab === 'ledger-only') {
+    const suggestedIds = new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
+    return open.filter(item => item.side === (tab === 'bank-only' ? 'bank' : 'ledger') &&
+      (item.kind || state.aiScanned && !suggestedIds.has(item.id)));
+  }
+  return open;
+}
+function selectNextInTab() {
+  const next = tabItems(state.tab)[0];
+  if (next) { state.selected = next.id; return; }
+  if (state.tab === 'open' && !openItems().length) {
+    state.tab = 'resolved';
+    state.selected = tabItems('resolved')[0]?.id || null;
+  } else {
+    state.selected = null;
+  }
+}
 function evidence(s) {
   const date = `${s.gap} day${s.gap === 1 ? '' : 's'} apart`;
   if (s.adjustment) return `Gross ledger ${money(s.ledger.amount)} − net bank ${money(s.bank.amount)} = ${money(s.difference)} difference · ${date} · Possible processing fee; verify before recording`;
@@ -72,23 +96,22 @@ function evidence(s) {
 }
 
 function resolve(ids, action, label, origin = 'Manual review', note = '') {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity] });
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, selected: state.selected });
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   ids.forEach(id => state.resolved[id] = { action, label, time, origin, note });
   state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note });
-  state.tab = openItems().length ? 'open' : 'resolved';
-  state.selected = openItems()[0]?.id || ids[0];
+  selectNextInTab();
   render();
   toast(label, true);
 }
 
 function rejectSuggestion(suggestion, selectedId) {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity] });
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, selected: state.selected });
   state.rejectedPairs.add(pairKey(suggestion.bank.id, suggestion.ledger.id));
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   state.activity.unshift({ label: `Rejected suggested match: ${suggestion.bank.name} ↔ ${suggestion.ledger.name}`, origin: 'AI suggested · Maya rejected', time, actor: 'Maya Chen', note: '' });
   state.selected = selectedId;
-  state.tab = 'open';
+  state.tab = items.find(item => item.id === selectedId).side === 'bank' ? 'bank-only' : 'ledger-only';
   closeModal();
   render();
   toast('Suggestion rejected. Choose a resolution for each item.', true);
@@ -100,8 +123,8 @@ function undoLast() {
   state.resolved = previous.resolved;
   state.rejectedPairs = previous.rejectedPairs;
   state.activity = previous.activity;
-  state.tab = 'open';
-  state.selected = openItems()[0]?.id || state.selected;
+  state.tab = previous.tab;
+  state.selected = previous.selected;
   closeModal();
   render();
   toast('Last action undone');
@@ -141,9 +164,12 @@ function render() {
   $('sideCount').textContent = open.length;
   $('pairCount').textContent = state.aiScanned ? suggestions.length : '—';
   $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
-  $('bankCount').textContent = open.filter(item => item.side === 'bank' && (item.kind || state.aiScanned && !suggestionFor(item))).length;
-  $('ledgerCount').textContent = open.filter(item => item.side === 'ledger' && (item.kind || state.aiScanned && !suggestionFor(item))).length;
+  $('bankCount').textContent = tabItems('bank-only').length;
+  $('ledgerCount').textContent = tabItems('ledger-only').length;
   $('openTabCount').textContent = open.length;
+  $('suggestedTabCount').textContent = tabItems('suggested').length;
+  $('bankOnlyTabCount').textContent = tabItems('bank-only').length;
+  $('ledgerOnlyTabCount').textContent = tabItems('ledger-only').length;
   $('resolvedTabCount').textContent = resolved;
   $('aiMatchBtn').textContent = state.aiScanned ? `✦ AI Match · ${suggestions.length}` : '✦ AI Match';
   const balance = balanceSnapshot();
@@ -176,19 +202,18 @@ function rowBadge(item) {
 
 function renderList() {
   const query = $('search').value.trim().toLowerCase();
-  const shown = items.filter(item =>
-    (state.tab === 'open' ? !state.resolved[item.id] : !!state.resolved[item.id]) &&
+  const shown = tabItems(state.tab).filter(item =>
     `${item.name} ${item.ref} ${item.amount}`.toLowerCase().includes(query)
   );
   for (const side of ['bank', 'ledger']) {
     const rows = shown.filter(item => item.side === side);
-    const label = state.tab === 'open' ? 'open' : 'resolved';
-    $(`${side}VisibleCount`).textContent = `${rows.length} ${label}`;
+    const label = { open: 'Open', suggested: 'AI Suggested', 'bank-only': 'Bank only', 'ledger-only': 'Ledger only', resolved: 'Resolved' }[state.tab];
+    $(`${side}VisibleCount`).textContent = `${rows.length} ${state.tab === 'open' ? 'open' : state.tab === 'resolved' ? 'resolved' : 'items'}`;
     $(`${side}List`).innerHTML = rows.length ? rows.map(item => `<button type="button" class="row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.name}, ${money(item.amount)}">
       <span class="type-icon ${item.side === 'ledger' ? 'ledger' : ''}">${item.side === 'bank' ? '↘' : '▤'}</span>
       <span class="row-main"><span class="row-title">${item.name}</span><span class="row-meta">${item.date} · ${item.ref}</span></span>
       <span class="row-right"><span class="amount">${money(item.amount)}</span><br><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
-    </button>`).join('') : `<div class="empty-list">No ${label} ${side === 'bank' ? 'bank' : 'ledger'} transactions${query ? ' match this search' : ''}.</div>`;
+    </button>`).join('') : `<div class="empty-list">No ${side === 'bank' ? 'bank' : 'ledger'} transactions in ${label}${query ? ' match this search' : ''}.</div>`;
   }
   document.querySelectorAll('.row').forEach(row => row.onclick = () => { state.selected = row.dataset.id; render(); });
 }
@@ -197,7 +222,8 @@ function renderDetail() {
   const item = items.find(entry => entry.id === state.selected);
   if (!item) {
     $('detailIndex').textContent = '';
-    $('detailBody').innerHTML = `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'Choose a transaction to review.'}</p>`;
+    $('detailBody').innerHTML = state.tab === 'suggested' && !state.aiScanned ? '<div class="ai-launch"><div class="section-title">Find possible matches</div><p>Run AI Match to see suggested bank and ledger pairs here.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>' : `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'No transactions in this view.'}</p>`;
+    if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
     return;
   }
   $('detailIndex').textContent = `Item ${items.indexOf(item) + 1} of 14`;
@@ -294,7 +320,7 @@ function showAIMatches() {
   $('aiClose').onclick = closeModal;
   document.querySelectorAll('[data-review]').forEach(button => button.onclick = () => {
     state.selected = button.dataset.review;
-    state.tab = 'open';
+    state.tab = 'suggested';
     closeModal();
     render();
   });
@@ -312,6 +338,7 @@ function showAIMatches() {
 
 function runAIMatch() {
   state.aiScanned = true;
+  if (!tabItems(state.tab).some(item => item.id === state.selected)) state.selected = tabItems(state.tab)[0]?.id || null;
   render();
   showAIMatches();
 }
@@ -328,7 +355,7 @@ function showFinish() {
 $('search').addEventListener('input', renderList);
 document.querySelectorAll('.tab').forEach(tab => tab.onclick = () => {
   state.tab = tab.dataset.tab;
-  const candidates = items.filter(item => state.tab === 'open' ? !state.resolved[item.id] : !!state.resolved[item.id]);
+  const candidates = tabItems(state.tab);
   if (!candidates.some(item => item.id === state.selected)) state.selected = candidates[0]?.id || null;
   render();
 });
