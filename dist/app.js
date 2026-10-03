@@ -171,19 +171,22 @@ function render() {
   const open = openItems();
   const resolved = items.length - open.length;
   const suggestions = visibleSuggestions();
+  const suggestedTransactions = tabItems('suggested').length;
   $('progressNum').textContent = `${resolved} of 14`;
   $('progressSub').textContent = resolved === 14 ? 'All transactions reviewed' : `${open.length} transaction${open.length === 1 ? '' : 's'} need attention`;
   $('progressFill').style.width = `${resolved / 14 * 100}%`;
   $('sideCount').textContent = open.length;
-  $('pairCount').textContent = state.aiScanned ? suggestions.length : '—';
-  $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
+  $('suggestedCount').textContent = suggestedTransactions;
+  $('pairSub').textContent = state.aiScanned ?
+    (suggestions.length ? `${suggestions.length} pair${suggestions.length === 1 ? '' : 's'} to review` : 'No suggestions remain') :
+    'Transactions ready to scan';
   $('bankCount').textContent = tabItems('bank-only').length;
   $('ledgerCount').textContent = tabItems('ledger-only').length;
   $('bankSub').textContent = 'Need a ledger entry or exclusion';
   $('ledgerSub').textContent = 'Review timing or exclusion';
   $('openTabCount').textContent = open.length;
   $('allFilterCount').textContent = open.length;
-  $('suggestedTabCount').textContent = tabItems('suggested').length;
+  $('suggestedTabCount').textContent = suggestedTransactions;
   $('bankOnlyTabCount').textContent = tabItems('bank-only').length;
   $('ledgerOnlyTabCount').textContent = tabItems('ledger-only').length;
   $('resolvedTabCount').textContent = resolved;
