@@ -8,11 +8,11 @@ Open `dist/index.html` in a browser, or use the published URL. Start with **AI M
 
 1. Run AI Match to find five possible bank/ledger pairs. Confirm a direct pair after inspecting its evidence.
 2. Review the Stripe net deposit: the $12,770.75 gross ledger receipt differs from the $12,480.75 bank deposit by $290.00. Verify the proposed processing fee and explicitly confirm **Match + record fee**.
-3. Create entries for the $45 bank fee and $12.50 interest.
-4. Carry the $1,900 deposit in transit and $860 outstanding check into the next statement review.
+3. For the $45 bank fee and $12.50 interest, select **Create ledger entry**. Choose a required category and optionally add a note in the confirmation dialog, then select **Create & Clear**.
+4. For the $1,900 deposit and $860 check, select **Resolve this item**, then confirm **Mark Deposit in Transit** or **Mark Outstanding** in the dialog. An optional note records the expected timing.
 5. Check the activity log and the $0.00 balance difference, then select **Finish reconciliation**.
 
-The top-level **Open** and **Resolved** tabs each show separate Bank statement and General ledger lists. Search narrows both lists. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
+The top-level **Open** and **Resolved** tabs each show separate Bank statement and General ledger lists. Search narrows both lists. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
 
 ## Reconciliation logic
 

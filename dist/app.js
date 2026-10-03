@@ -20,6 +20,7 @@ const state = { resolved: {}, selected: 'b1', tab: 'open', history: [], activity
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const signedMoney = amount => `${amount > 0 ? '+' : amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const escapeHTML = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const openItems = () => items.filter(item => !state.resolved[item.id]);
 const dateNumber = item => Number(item.date.split(' ')[1]);
 
@@ -67,11 +68,11 @@ function evidence(s) {
   return `Exact amount · ${date}${s.shared.length ? ` · Related description: ${s.shared.join(', ')}` : ' · Descriptions differ; inspect both records'}`;
 }
 
-function resolve(ids, action, label, origin = 'Manual review') {
+function resolve(ids, action, label, origin = 'Manual review', note = '') {
   state.history.push({ resolved: { ...state.resolved }, activity: [...state.activity] });
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  ids.forEach(id => state.resolved[id] = { action, label, time, origin });
-  state.activity.unshift({ label, origin, time, actor: 'Maya Chen' });
+  ids.forEach(id => state.resolved[id] = { action, label, time, origin, note });
+  state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note });
   state.tab = openItems().length ? 'open' : 'resolved';
   state.selected = openItems()[0]?.id || ids[0];
   render();
@@ -108,7 +109,7 @@ function balanceSnapshot() {
 
 function renderActivity() {
   $('activityCount').textContent = `${state.activity.length} action${state.activity.length === 1 ? '' : 's'}`;
-  $('activityList').innerHTML = state.activity.length ? state.activity.map(entry => `<div class="activity-row"><div><strong>${entry.label}</strong><br><span>${entry.actor} · ${entry.origin}</span></div><span>${entry.time}</span></div>`).join('') : '<div class="empty-activity">Actions will appear here as you review items.</div>';
+  $('activityList').innerHTML = state.activity.length ? state.activity.map(entry => `<div class="activity-row"><div><strong>${escapeHTML(entry.label)}</strong><br><span>${escapeHTML(entry.actor)} · ${escapeHTML(entry.origin)}</span>${entry.note ? `<p class="activity-note">Note: ${escapeHTML(entry.note)}</p>` : ''}</div><span>${entry.time}</span></div>`).join('') : '<div class="empty-activity">Actions will appear here as you review items.</div>';
 }
 
 function render() {
@@ -187,7 +188,7 @@ function renderDetail() {
     <div class="facts"><div class="fact"><span>Date</span><strong>${item.date}, 2026</strong></div><div class="fact"><span>Reference</span><strong>${item.ref}</strong></div><div class="fact"><span>Account</span><strong>Operating ·•• 4821</strong></div></div><div class="rule"></div>`;
   if (state.resolved[item.id]) {
     const result = state.resolved[item.id];
-    body += `<div class="resolved-card"><strong>✓ ${result.label}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'The item remains on the next-period follow-up list.'}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo last action</button></div>`;
+    body += `<div class="resolved-card"><strong>✓ ${escapeHTML(result.label)}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'The item remains on the next-period follow-up list.'}${result.note ? `<div class="resolved-note">Note: ${escapeHTML(result.note)}</div>` : ''}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo last action</button></div>`;
   } else if (partner && suggestion.adjustment) {
     body += `<div class="section-title">✦ AI suggestion <span class="signal adjust" style="margin-left:7px">Needs adjustment</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank statement' : 'General ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
@@ -201,9 +202,9 @@ function renderDetail() {
     body += `<div class="ai-launch"><div class="section-title">Find a possible match</div><p>Compare this transaction with open entries on the other side.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>`;
   } else if (item.side === 'bank') {
     const account = item.kind === 'fee' ? 'Bank fees' : 'Interest income';
-    body += `<div class="section-title">Create missing ledger entry</div><p class="info">${state.aiScanned ? 'No reliable ledger match was found. ' : ''}This bank transaction has no ledger entry.</p><div class="explain">✦ Suggested category (demo): <strong>${account}</strong> based on “${item.name}”. Verify the account before creating an entry.</div><label class="formline">Account<select id="accountSelect"><option>${account}</option>${item.kind === 'fee' ? '<option>Other operating expense</option>' : '<option>Other income</option>'}</select></label><p class="info">The ${item.kind === 'fee' ? 'fee reduces' : 'interest increases'} the book balance by ${money(Math.abs(item.amount))}. A real system would require posting approval.</p><div class="actionrow"><button class="primary" id="recordBtn" type="button">Create ${item.kind === 'fee' ? 'fee' : 'interest'} entry</button></div>`;
+    body += `<div class="section-title">Resolve this item</div><p class="info">${state.aiScanned ? 'No reliable ledger match was found. ' : ''}This bank transaction has no ledger entry.</p><div class="explain">✦ Suggested category: <strong>${account}</strong> based on “${item.name}”. Verify it before creating an entry.</div><button class="resolve-option" id="openEntryBtn" type="button"><span class="resolve-icon">＋</span><span><strong>Create ledger entry</strong><small>Record this bank transaction in the general ledger</small></span><span class="resolve-chevron">›</span></button>`;
   } else {
-    body += `<div class="section-title">${item.kind === 'deposit' ? 'Deposit in transit' : 'Outstanding check'}</div><p class="info">No September bank transaction is expected yet. Unmatched does not mean wrong: carry this item into the next statement review.</p><label class="formline">Expected to clear<select id="clearDate"><option>October 2026</option><option>November 2026</option></select></label><div class="explain">${item.kind === 'deposit' ? 'Recognizing this deposit in transit adds $1,900.00 to the adjusted bank balance.' : 'Recognizing this outstanding check subtracts $860.00 from the adjusted bank balance.'}</div><div class="actionrow"><button class="primary" id="timingBtn" type="button">${item.kind === 'deposit' ? 'Mark deposit in transit' : 'Mark as outstanding'}</button></div>`;
+    body += `<div class="section-title resolve-kicker">Resolve this item</div><button class="resolve-option" id="openOutstandingBtn" type="button"><span class="resolve-icon">⌛</span><span><strong>${item.kind === 'deposit' ? 'Mark deposit in transit' : 'Mark as outstanding'}</strong><small>${item.kind === 'deposit' ? 'Deposit recorded, but not yet on the bank statement' : "Transaction hasn't cleared the bank yet"}</small></span><span class="resolve-chevron">›</span></button><p class="info">This item will carry forward to the next reconciliation.</p>`;
   }
   $('detailBody').innerHTML = body;
   if ($('matchBtn')) $('matchBtn').onclick = () => resolve([item.id, partner.id], 'match', `Matched ${item.name} with ${partner.name}`, 'AI suggested · Maya confirmed');
@@ -212,12 +213,41 @@ function renderDetail() {
     resolve([item.id, partner.id], 'adjustment', `Matched Stripe payout and recorded $290.00 processing fee`, 'AI suggested · Maya verified adjustment');
   };
   if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
-  if ($('recordBtn')) $('recordBtn').onclick = () => resolve([item.id], 'entry', `Created ${item.kind} entry in ${$('accountSelect').value}`, 'Bank statement · Maya confirmed account');
-  if ($('timingBtn')) $('timingBtn').onclick = () => resolve([item.id], 'timing', `${item.kind === 'deposit' ? 'Carried deposit in transit' : 'Carried outstanding check'} to ${$('clearDate').value}`, 'Maya explained timing difference');
+  if ($('openEntryBtn')) $('openEntryBtn').onclick = () => showCreateEntry(item);
+  if ($('openOutstandingBtn')) $('openOutstandingBtn').onclick = () => showOutstanding(item);
   if ($('undoDetail')) $('undoDetail').onclick = undoLast;
 }
 
 function closeModal() { $('modalMount').innerHTML = ''; }
+
+function showCreateEntry(item) {
+  const suggested = item.kind === 'fee' ? 'Bank fees' : 'Interest income';
+  const other = item.kind === 'fee' ? 'Other operating expense' : 'Other income';
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><label class="task-field" for="entryCategory">Category<select id="entryCategory" required><option value="">Select a category...</option><option value="${suggested}">${suggested} · suggested</option><option value="${other}">${other}</option></select></label><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  $('entryCategory').onchange = () => $('confirmEntryBtn').disabled = !$('entryCategory').value;
+  $('confirmEntryBtn').onclick = () => {
+    const category = $('entryCategory').value;
+    if (!category) return;
+    const note = $('entryNote').value.trim();
+    resolve([item.id], 'entry', `Created ledger entry in ${category}`, 'Bank statement · Maya confirmed category', note);
+    closeModal();
+  };
+  $('cancelTaskModal').onclick = closeModal;
+  $('entryCategory').focus();
+}
+
+function showOutstanding(item) {
+  const deposit = item.kind === 'deposit';
+  const title = deposit ? 'Mark Deposit in Transit' : 'Mark as Outstanding';
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><p class="task-explanation">This entry will be carried forward to next month's reconciliation as ${deposit ? 'a deposit in transit' : 'an outstanding item'}.</p><label class="task-field" for="outstandingNote">Note<textarea id="outstandingNote" maxlength="300" placeholder="${deposit ? 'e.g. Deposit submitted Sep 30; expect to clear Oct 2' : 'e.g. Check mailed Sep 30; expect to clear Oct 5'}"></textarea></label><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="button">${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  $('confirmOutstandingBtn').onclick = () => {
+    const note = $('outstandingNote').value.trim();
+    resolve([item.id], 'timing', `${deposit ? 'Carried deposit in transit' : 'Carried outstanding check'} to October 2026`, 'Maya explained timing difference', note);
+    closeModal();
+  };
+  $('cancelTaskModal').onclick = closeModal;
+  $('outstandingNote').focus();
+}
 
 function showAIMatches() {
   const suggestions = visibleSuggestions();
