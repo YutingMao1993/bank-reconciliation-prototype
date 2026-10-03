@@ -16,13 +16,15 @@ const items = [
   { id: 'l7', side: 'ledger', date: 'Sep 29', name: 'Office supplies check', amount: -860, ref: 'Check · #1048', kind: 'check' }
 ];
 
-const state = { resolved: {}, selected: 'b1', tab: 'open', history: [], activity: [], aiScanned: false, toastTimer: null };
+const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', history: [], activity: [], aiScanned: false, toastTimer: null };
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const signedMoney = amount => `${amount > 0 ? '+' : amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const openItems = () => items.filter(item => !state.resolved[item.id]);
 const dateNumber = item => Number(item.date.split(' ')[1]);
+const pairKey = (bankId, ledgerId) => `${bankId}:${ledgerId}`;
+const rejectedFor = item => [...state.rejectedPairs].some(key => key.split(':').includes(item.id));
 
 // An explainable local matcher for the demo. The list contains no preset pair IDs.
 function nameTokens(name) {
@@ -37,6 +39,7 @@ function computeSuggestions() {
   const candidates = [];
   for (const b of bank) {
     for (const l of ledger) {
+      if (state.rejectedPairs.has(pairKey(b.id, l.id))) continue;
       const gap = Math.abs(dateNumber(b) - dateNumber(l));
       if (gap > 3) continue;
       const difference = Math.round((l.amount - b.amount) * 100) / 100;
@@ -69,7 +72,7 @@ function evidence(s) {
 }
 
 function resolve(ids, action, label, origin = 'Manual review', note = '') {
-  state.history.push({ resolved: { ...state.resolved }, activity: [...state.activity] });
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity] });
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   ids.forEach(id => state.resolved[id] = { action, label, time, origin, note });
   state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note });
@@ -79,10 +82,23 @@ function resolve(ids, action, label, origin = 'Manual review', note = '') {
   toast(label, true);
 }
 
+function rejectSuggestion(suggestion, selectedId) {
+  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity] });
+  state.rejectedPairs.add(pairKey(suggestion.bank.id, suggestion.ledger.id));
+  const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  state.activity.unshift({ label: `Rejected suggested match: ${suggestion.bank.name} ↔ ${suggestion.ledger.name}`, origin: 'AI suggested · Maya rejected', time, actor: 'Maya Chen', note: '' });
+  state.selected = selectedId;
+  state.tab = 'open';
+  closeModal();
+  render();
+  toast('Suggestion rejected. Choose a resolution for each item.', true);
+}
+
 function undoLast() {
   const previous = state.history.pop();
   if (!previous) return;
   state.resolved = previous.resolved;
+  state.rejectedPairs = previous.rejectedPairs;
   state.activity = previous.activity;
   state.tab = 'open';
   state.selected = openItems()[0]?.id || state.selected;
@@ -100,10 +116,13 @@ function toast(message, undo = false) {
 
 function balanceSnapshot() {
   const bankCents = 48627436;
-  const timingCents = (state.resolved.l6 ? 190000 : 0) - (state.resolved.l7 ? 86000 : 0);
+  const timingCents = items.filter(item => item.side === 'ledger' && state.resolved[item.id]?.action === 'timing')
+    .reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
   const adjustedBankCents = bankCents + timingCents;
-  const adjustedLedgerCents = 48763686 - (state.resolved.b2 ? 29000 : 0) -
-    (state.resolved.b6 ? 4500 : 0) + (state.resolved.b7 ? 1250 : 0);
+  const entryCents = items.filter(item => item.side === 'bank' && state.resolved[item.id]?.action === 'entry')
+    .reduce((sum, item) => sum + Math.round(item.amount * 100), 0);
+  const adjustmentCents = state.resolved.b2?.action === 'adjustment' ? 29000 : 0;
+  const adjustedLedgerCents = 48763686 + entryCents - adjustmentCents;
   return { timingCents, adjustedBankCents, adjustedLedgerCents, differenceCents: adjustedLedgerCents - adjustedBankCents };
 }
 
@@ -122,8 +141,8 @@ function render() {
   $('sideCount').textContent = open.length;
   $('pairCount').textContent = state.aiScanned ? suggestions.length : '—';
   $('pairSub').textContent = state.aiScanned ? (suggestions.length ? 'Review before confirming' : 'No candidates remain') : 'Scan open transactions';
-  $('bankCount').textContent = open.filter(item => item.side === 'bank' && item.kind).length;
-  $('ledgerCount').textContent = open.filter(item => item.side === 'ledger' && item.kind).length;
+  $('bankCount').textContent = open.filter(item => item.side === 'bank' && (item.kind || state.aiScanned && !suggestionFor(item))).length;
+  $('ledgerCount').textContent = open.filter(item => item.side === 'ledger' && (item.kind || state.aiScanned && !suggestionFor(item))).length;
   $('openTabCount').textContent = open.length;
   $('resolvedTabCount').textContent = resolved;
   $('aiMatchBtn').textContent = state.aiScanned ? `✦ AI Match · ${suggestions.length}` : '✦ AI Match';
@@ -150,7 +169,8 @@ function rowBadge(item) {
   if (state.resolved[item.id]) return 'Resolved';
   const suggestion = suggestionFor(item);
   if (suggestion) return suggestion.adjustment ? 'Review adjustment' : 'AI suggested';
-  if (item.kind) return item.side === 'bank' ? 'Create entry' : item.kind === 'check' ? 'Outstanding' : 'In transit';
+  if (item.kind) return item.side === 'bank' ? 'Create entry' : item.amount < 0 ? 'Outstanding' : 'In transit';
+  if (rejectedFor(item) || state.aiScanned) return 'Needs resolution';
   return 'Scan for match';
 }
 
@@ -188,23 +208,23 @@ function renderDetail() {
     <div class="facts"><div class="fact"><span>Date</span><strong>${item.date}, 2026</strong></div><div class="fact"><span>Reference</span><strong>${item.ref}</strong></div><div class="fact"><span>Account</span><strong>Operating ·•• 4821</strong></div></div><div class="rule"></div>`;
   if (state.resolved[item.id]) {
     const result = state.resolved[item.id];
-    body += `<div class="resolved-card"><strong>✓ ${escapeHTML(result.label)}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'The item remains on the next-period follow-up list.'}${result.note ? `<div class="resolved-note">Note: ${escapeHTML(result.note)}</div>` : ''}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo last action</button></div>`;
+    body += `<div class="resolved-card"><strong>✓ ${escapeHTML(result.label)}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : result.action === 'exclude' ? 'Excluded from this review with a recorded reason. No balance adjustment was made.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'The item remains on the next-period follow-up list.'}${result.note ? `<div class="resolved-note">Note: ${escapeHTML(result.note)}</div>` : ''}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo last action</button></div>`;
   } else if (partner && suggestion.adjustment) {
     body += `<div class="section-title">✦ AI suggestion <span class="signal adjust" style="margin-left:7px">Needs adjustment</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank statement' : 'General ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
       <div class="rule"></div><div class="section-title">Review proposed fee entry</div><div class="adjustment-box"><strong>Possible net deposit</strong><p>The $290.00 difference may be a processing fee. Verify it against the payout report before confirming.</p><div class="balance-preview"><span>Gross ledger receipt</span><span>$12,770.75</span></div><div class="balance-preview"><span>Proposed processing fee</span><span>−$290.00</span></div><div class="balance-preview"><span>Bank deposit</span><span>$12,480.75</span></div></div>
-      <label class="formline">Fee account<select id="adjustmentAccount"><option>Payment processing fees</option><option>Needs further review</option></select></label><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Match + record $290 fee</button></div><p class="info">Demo action only. This does not post to a real ledger.</p>`;
+      <label class="formline">Fee account<select id="adjustmentAccount"><option>Payment processing fees</option><option>Needs further review</option></select></label><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Match + record $290 fee</button><button class="ghost" id="notMatchBtn" type="button">Not a match</button></div><p class="info">Demo action only. This does not post to a real ledger.</p>`;
   } else if (partner) {
     body += `<div class="section-title">✦ AI Match suggestion <span class="signal ${suggestion.score < 90 ? 'review' : ''}" style="margin-left:7px">${suggestion.strength}</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank statement' : 'General ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
-      <div class="explain">This is a suggestion, not an automatic posting. Confirm the transaction identity before matching.</div><div class="actionrow"><button class="primary" id="matchBtn" type="button">Confirm match</button></div>`;
-  } else if (!item.kind) {
+      <div class="explain">This is a suggestion, not an automatic posting. Confirm the transaction identity before matching.</div><div class="actionrow"><button class="primary" id="matchBtn" type="button">Confirm match</button><button class="ghost" id="notMatchBtn" type="button">Not a match</button></div>`;
+  } else if (!item.kind && !rejectedFor(item) && !state.aiScanned) {
     body += `<div class="ai-launch"><div class="section-title">Find a possible match</div><p>Compare this transaction with open entries on the other side.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>`;
   } else if (item.side === 'bank') {
-    const account = item.kind === 'fee' ? 'Bank fees' : 'Interest income';
-    body += `<div class="section-title">Resolve this item</div><p class="info">${state.aiScanned ? 'No reliable ledger match was found. ' : ''}This bank transaction has no ledger entry.</p><div class="explain">✦ Suggested category: <strong>${account}</strong> based on “${item.name}”. Verify it before creating an entry.</div><button class="resolve-option" id="openEntryBtn" type="button"><span class="resolve-icon">＋</span><span><strong>Create ledger entry</strong><small>Record this bank transaction in the general ledger</small></span><span class="resolve-chevron">›</span></button>`;
+    const account = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
+    body += `${rejectedFor(item) ? '<p class="rejected-info">AI suggestion marked “Not a match.” Review this transaction on its own.</p>' : ''}<div class="section-title resolve-kicker">Resolve this item</div><button class="resolve-option" id="openEntryBtn" type="button"><span class="resolve-icon">＋</span><span><strong>Create ledger entry</strong><small>Record this bank transaction in the ledger</small></span></button><button class="resolve-option exclude-option" id="openExcludeBtn" type="button"><span class="resolve-icon">×</span><span><strong>Exclude</strong><small>Remove from reconciliation scope with a note</small></span></button><p class="info">Suggested category: ${account}. Confirm the account before creating an entry.</p>`;
   } else {
-    body += `<div class="section-title resolve-kicker">Resolve this item</div><button class="resolve-option" id="openOutstandingBtn" type="button"><span class="resolve-icon">⌛</span><span><strong>${item.kind === 'deposit' ? 'Mark deposit in transit' : 'Mark as outstanding'}</strong><small>${item.kind === 'deposit' ? 'Deposit recorded, but not yet on the bank statement' : "Transaction hasn't cleared the bank yet"}</small></span><span class="resolve-chevron">›</span></button><p class="info">This item will carry forward to the next reconciliation.</p>`;
+    body += `${rejectedFor(item) ? '<p class="rejected-info">AI suggestion marked “Not a match.” Review this transaction on its own.</p>' : ''}<div class="section-title resolve-kicker">Resolve this item</div><button class="resolve-option" id="openOutstandingBtn" type="button"><span class="resolve-icon">⌛</span><span><strong>${item.amount > 0 ? 'Mark deposit in transit' : 'Mark as outstanding'}</strong><small>${item.amount > 0 ? 'Deposit recorded, but not yet on the bank statement' : "Transaction hasn't cleared the bank yet"}</small></span></button><button class="resolve-option exclude-option" id="openExcludeBtn" type="button"><span class="resolve-icon">×</span><span><strong>Exclude</strong><small>Remove from reconciliation scope with a note</small></span></button><p class="info">This item will carry forward if marked as a timing difference.</p>`;
   }
   $('detailBody').innerHTML = body;
   if ($('matchBtn')) $('matchBtn').onclick = () => resolve([item.id, partner.id], 'match', `Matched ${item.name} with ${partner.name}`, 'AI suggested · Maya confirmed');
@@ -213,16 +233,18 @@ function renderDetail() {
     resolve([item.id, partner.id], 'adjustment', `Matched Stripe payout and recorded $290.00 processing fee`, 'AI suggested · Maya verified adjustment');
   };
   if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
+  if ($('notMatchBtn')) $('notMatchBtn').onclick = () => rejectSuggestion(suggestion, item.id);
   if ($('openEntryBtn')) $('openEntryBtn').onclick = () => showCreateEntry(item);
   if ($('openOutstandingBtn')) $('openOutstandingBtn').onclick = () => showOutstanding(item);
+  if ($('openExcludeBtn')) $('openExcludeBtn').onclick = () => showExclude(item);
   if ($('undoDetail')) $('undoDetail').onclick = undoLast;
 }
 
 function closeModal() { $('modalMount').innerHTML = ''; }
 
 function showCreateEntry(item) {
-  const suggested = item.kind === 'fee' ? 'Bank fees' : 'Interest income';
-  const other = item.kind === 'fee' ? 'Other operating expense' : 'Other income';
+  const suggested = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
+  const other = item.amount < 0 ? 'Other operating expense' : 'Revenue';
   $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><label class="task-field" for="entryCategory">Category<select id="entryCategory" required><option value="">Select a category...</option><option value="${suggested}">${suggested} · suggested</option><option value="${other}">${other}</option></select></label><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
   $('entryCategory').onchange = () => $('confirmEntryBtn').disabled = !$('entryCategory').value;
   $('confirmEntryBtn').onclick = () => {
@@ -237,7 +259,7 @@ function showCreateEntry(item) {
 }
 
 function showOutstanding(item) {
-  const deposit = item.kind === 'deposit';
+  const deposit = item.amount > 0;
   const title = deposit ? 'Mark Deposit in Transit' : 'Mark as Outstanding';
   $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><p class="task-explanation">This entry will be carried forward to next month's reconciliation as ${deposit ? 'a deposit in transit' : 'an outstanding item'}.</p><label class="task-field" for="outstandingNote">Note<textarea id="outstandingNote" maxlength="300" placeholder="${deposit ? 'e.g. Deposit submitted Sep 30; expect to clear Oct 2' : 'e.g. Check mailed Sep 30; expect to clear Oct 5'}"></textarea></label><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="button">${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
   $('confirmOutstandingBtn').onclick = () => {
@@ -249,11 +271,24 @@ function showOutstanding(item) {
   $('outstandingNote').focus();
 }
 
+function showExclude(item) {
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Exclude Transaction</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><p class="task-explanation">Record why this transaction is outside the reconciliation scope. Excluding it does not change the bank or ledger balance.</p><label class="task-field" for="excludeNote">Reason for exclusion<textarea id="excludeNote" maxlength="300" placeholder="Explain why this item should be excluded" required></textarea></label><div class="task-actions"><button class="primary danger-confirm" id="confirmExcludeBtn" type="button" disabled>Exclude Item</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  $('excludeNote').oninput = () => $('confirmExcludeBtn').disabled = !$('excludeNote').value.trim();
+  $('confirmExcludeBtn').onclick = () => {
+    const note = $('excludeNote').value.trim();
+    if (!note) return;
+    resolve([item.id], 'exclude', `Excluded ${item.name} from reconciliation`, 'Maya documented exclusion', note);
+    closeModal();
+  };
+  $('cancelTaskModal').onclick = closeModal;
+  $('excludeNote').focus();
+}
+
 function showAIMatches() {
   const suggestions = visibleSuggestions();
   $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="ai-panel" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
     <div class="ai-head"><div><div class="ai-kicker">✦ AI Match · Demo</div><h2 id="aiTitle">${suggestions.length} possible ${suggestions.length === 1 ? 'match' : 'matches'}</h2><p>Amount, date and description signals narrow the review. A net deposit may need an adjustment.</p></div><button class="ai-close" id="aiClose" type="button" aria-label="Close AI Match">×</button></div>
-    <div class="ai-list">${suggestions.length ? suggestions.map((s, index) => `<div class="ai-card"><div class="ai-card-head"><strong>Suggested pair ${index + 1}</strong><span class="signal ${s.adjustment ? 'adjust' : s.score < 90 ? 'review' : ''}">${s.strength}</span></div><div class="ai-pair"><div class="ai-entry"><small>BANK · ${s.bank.date}</small><b>${s.bank.name}</b><span>${money(s.bank.amount)}</span></div><span class="ai-arrow">↔</span><div class="ai-entry"><small>LEDGER · ${s.ledger.date}</small><b>${s.ledger.name}</b><span>${money(s.ledger.amount)}</span></div></div><div class="ai-evidence">${evidence(s)}</div><div class="ai-card-actions"><button class="ghost" type="button" data-review="${s.bank.id}">${s.adjustment ? 'Review adjustment' : 'Inspect details'}</button>${s.adjustment ? '' : `<button class="primary" type="button" data-confirm="${s.bank.id}">Confirm match</button>`}</div></div>`).join('') : '<div class="empty-list">No candidate pairs remain. Review the bank-only and ledger-only items individually.</div>'}</div>
+    <div class="ai-list">${suggestions.length ? suggestions.map((s, index) => `<div class="ai-card"><div class="ai-card-head"><strong>Suggested pair ${index + 1}</strong><span class="signal ${s.adjustment ? 'adjust' : s.score < 90 ? 'review' : ''}">${s.strength}</span></div><div class="ai-pair"><div class="ai-entry"><small>BANK · ${s.bank.date}</small><b>${s.bank.name}</b><span>${money(s.bank.amount)}</span></div><span class="ai-arrow">↔</span><div class="ai-entry"><small>LEDGER · ${s.ledger.date}</small><b>${s.ledger.name}</b><span>${money(s.ledger.amount)}</span></div></div><div class="ai-evidence">${evidence(s)}</div><div class="ai-card-actions"><button class="ghost" type="button" data-review="${s.bank.id}">${s.adjustment ? 'Review adjustment' : 'Inspect details'}</button><button class="ghost" type="button" data-reject="${s.bank.id}">Not a match</button>${s.adjustment ? '' : `<button class="primary" type="button" data-confirm="${s.bank.id}">Confirm match</button>`}</div></div>`).join('') : '<div class="empty-list">No candidate pairs remain. Review the bank-only and ledger-only items individually.</div>'}</div>
     <div class="ai-disclaimer">Demo matching logic runs in this browser. Signal labels are review priorities, not calibrated probabilities. Nothing is posted automatically.</div>
   </div></div>`;
   $('aiClose').onclick = closeModal;
@@ -262,6 +297,10 @@ function showAIMatches() {
     state.tab = 'open';
     closeModal();
     render();
+  });
+  document.querySelectorAll('[data-reject]').forEach(button => button.onclick = () => {
+    const suggestion = visibleSuggestions().find(s => s.bank.id === button.dataset.reject);
+    if (suggestion) rejectSuggestion(suggestion, suggestion.bank.id);
   });
   document.querySelectorAll('[data-confirm]').forEach(button => button.onclick = () => {
     const suggestion = visibleSuggestions().find(s => s.bank.id === button.dataset.confirm);
@@ -279,7 +318,9 @@ function runAIMatch() {
 
 function showFinish() {
   if (openItems().length || balanceSnapshot().differenceCents !== 0) return;
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="final-card" role="dialog" aria-modal="true" aria-labelledby="finishTitle"><div class="check">✓</div><h2 id="finishTitle">Reconciliation ready for review</h2><p>All 14 items are explained. Adjusted bank and ledger balances both equal <strong>$487,314.36</strong>, with a <strong>$0.00 difference</strong>.</p><ul><li>4 direct pairs matched</li><li>1 net deposit matched with a $290.00 processing fee entry</li><li>2 other missing ledger entries created</li><li>2 timing items carried forward</li></ul><p>Review activity shows who confirmed each demo action. A real close would also require durable audit records, approval and source-statement verification.</p><div class="final-actions"><button class="primary" id="closeModal" type="button">Back to reconciliation</button><button class="ghost" id="resetModal" type="button">Restart demo</button></div></div></div>`;
+  const count = action => Object.values(state.resolved).filter(result => result.action === action).length;
+  const balance = money(balanceSnapshot().adjustedBankCents / 100);
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="final-card" role="dialog" aria-modal="true" aria-labelledby="finishTitle"><div class="check">✓</div><h2 id="finishTitle">Reconciliation ready for review</h2><p>All 14 items are explained. Adjusted bank and ledger balances both equal <strong>${balance}</strong>, with a <strong>$0.00 difference</strong>.</p><ul><li>${count('match') / 2} direct pairs matched</li><li>${count('adjustment') / 2} pair matched with an adjustment</li><li>${count('entry')} ledger entries created</li><li>${count('timing')} timing items carried forward</li><li>${count('exclude')} items excluded with a reason</li></ul><p>Review activity shows who confirmed each demo action. A real close would also require durable audit records, approval and source-statement verification.</p><div class="final-actions"><button class="primary" id="closeModal" type="button">Back to reconciliation</button><button class="ghost" id="resetModal" type="button">Restart demo</button></div></div></div>`;
   $('closeModal').onclick = closeModal;
   $('resetModal').onclick = () => $('resetBtn').click();
 }
@@ -293,6 +334,7 @@ document.querySelectorAll('.tab').forEach(tab => tab.onclick = () => {
 });
 $('resetBtn').onclick = () => {
   state.resolved = {};
+  state.rejectedPairs = new Set();
   state.history = [];
   state.activity = [];
   state.selected = 'b1';

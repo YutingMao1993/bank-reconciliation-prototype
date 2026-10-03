@@ -12,11 +12,13 @@ Open `dist/index.html` in a browser, or use the published URL. Start with **AI M
 4. For the $1,900 deposit and $860 check, select **Resolve this item**, then confirm **Mark Deposit in Transit** or **Mark Outstanding** in the dialog. An optional note records the expected timing.
 5. Check the activity log and the $0.00 balance difference, then select **Finish reconciliation**.
 
+Each AI suggestion offers **Not a match** in both the suggestion list and transaction detail. Rejecting a suggestion keeps both transactions open and gives each its own **Resolve this item** choices. Bank transactions can create a ledger entry or be excluded; ledger entries can be marked as a timing item or excluded. Exclusion requires a reason, records the decision, and does not change either balance. Undo can reverse a rejected suggestion or a resolution.
+
 The top-level **Open** and **Resolved** tabs each show separate Bank statement and General ledger lists. Search narrows both lists. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
 
 ## Reconciliation logic
 
-The scenario begins with a $486,274.36 bank statement balance and a $487,636.86 ledger balance. Four direct pairs have identical signed amounts. The Stripe pair requires a $290.00 processing-fee adjustment. Recording that fee plus the $45 bank fee and $12.50 interest changes the ledger by −$322.50 to $487,314.36. Carrying the $1,900 deposit in transit less the $860 outstanding check adjusts the bank balance by +$1,040.00 to the same $487,314.36. The summary changes as Maya resolves each item; finishing requires all 14 transactions to be explained **and** a $0.00 difference.
+The scenario begins with a $486,274.36 bank statement balance and a $487,636.86 ledger balance. Four direct pairs have identical signed amounts. The Stripe pair requires a $290.00 processing-fee adjustment. Recording that fee plus the $45 bank fee and $12.50 interest changes the ledger by −$322.50 to $487,314.36. Carrying the $1,900 deposit in transit less the $860 outstanding check adjusts the bank balance by +$1,040.00 to the same $487,314.36. The summary changes as Maya resolves each item; finishing requires all 14 transactions to be explained **and** a $0.00 difference. If a suggestion is rejected, the summary instead uses the amounts of any individual entries or timing items Maya confirms.
 
 The initial 14 unresolved transactions comprise 10 entries that form five possible pairs, two bank-only transactions, and two ledger-only transactions. The count represents transactions, while **AI suggestions** counts candidate pairs.
 
@@ -25,7 +27,7 @@ AI Match is an explainable, local simulation for the exercise, not a live AI ser
 ## Design decisions
 
 - Put top-level status tabs above separate Bank statement and General ledger queues, with transaction evidence alongside them, so Maya can review context without losing her place.
-- Keep AI Match suggestions as recommendations. Maya sees the evidence and confirms each pair because similar amount and date alone are insufficient evidence.
+- Keep AI Match suggestions as recommendations. Maya sees the evidence and can confirm or reject each pair because similar amount and date alone are insufficient evidence.
 - Distinguish missing book entries from legitimate timing differences. An unmatched item is not automatically wrong.
 - Treat the Stripe amount difference as a proposed adjustment that needs explicit human confirmation.
 - Update adjusted balances as actions are taken and enable finishing only after every item is explained and the difference is zero.
