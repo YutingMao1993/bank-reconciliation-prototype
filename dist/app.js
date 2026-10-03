@@ -287,8 +287,56 @@ function closeModal() { $('modalMount').innerHTML = ''; }
 function showCreateEntry(item) {
   const suggested = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
   const other = item.amount < 0 ? 'Other operating expense' : 'Revenue';
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><label class="task-field" for="entryCategory">Category<select id="entryCategory" required><option value="">Select a category...</option><option value="${suggested}">${suggested} · suggested</option><option value="${other}">${other}</option></select></label><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
-  $('entryCategory').onchange = () => $('confirmEntryBtn').disabled = !$('entryCategory').value;
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><div class="task-field"><span id="entryCategoryLabel">Category</span><div class="category-picker"><button class="category-trigger" id="entryCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="entryCategoryLabel entryCategoryValue"><span id="entryCategoryValue">Select a category...</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="entryCategoryOptions" role="listbox" aria-labelledby="entryCategoryLabel" hidden><button class="category-option" type="button" role="option" aria-selected="false" data-value="${suggested}">${suggested}<span class="category-suggested">Suggested</span></button><button class="category-option" type="button" role="option" aria-selected="false" data-value="${other}">${other}</button></div><input id="entryCategory" type="hidden" value=""></div></div><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  const trigger = $('entryCategoryTrigger');
+  const options = $('entryCategoryOptions');
+  const choices = [...options.querySelectorAll('.category-option')];
+  const setOpen = (open, focusOption = false) => {
+    options.hidden = !open;
+    trigger.setAttribute('aria-expanded', String(open));
+    if (open && focusOption) choices[0].focus();
+  };
+  trigger.onclick = () => setOpen(options.hidden, options.hidden);
+  trigger.onkeydown = event => {
+    if (event.key === 'Escape' && !options.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setOpen(true);
+      choices[event.key === 'ArrowDown' ? 0 : choices.length - 1].focus();
+    }
+  };
+  choices.forEach((choice, index) => {
+    choice.onclick = () => {
+      $('entryCategory').value = choice.dataset.value;
+      $('entryCategoryValue').textContent = choice.dataset.value;
+      $('confirmEntryBtn').disabled = false;
+      choices.forEach(option => option.setAttribute('aria-selected', String(option === choice)));
+      setOpen(false);
+      trigger.focus();
+    };
+    choice.onkeydown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        trigger.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        choices[(index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length].focus();
+      }
+    };
+  });
+  $('modalMount').onclick = event => {
+    if (!event.target.closest('.category-picker')) setOpen(false);
+  };
+  options.parentElement.onfocusout = () => {
+    requestAnimationFrame(() => {
+      if (!options.parentElement.contains(document.activeElement)) setOpen(false);
+    });
+  };
   $('confirmEntryBtn').onclick = () => {
     const category = $('entryCategory').value;
     if (!category) return;
@@ -297,7 +345,7 @@ function showCreateEntry(item) {
     closeModal();
   };
   $('cancelTaskModal').onclick = closeModal;
-  $('entryCategory').focus();
+  trigger.focus();
 }
 
 function showOutstanding(item) {
