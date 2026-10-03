@@ -14,7 +14,7 @@ Open `dist/index.html` in a browser, or use the published URL. Start with **AI M
 
 Each AI suggestion offers **Not a match** in both the suggestion list and transaction detail. Rejecting a suggestion keeps both transactions open and gives each its own **Resolve this item** choices. Bank transactions can create a ledger entry or be excluded; ledger entries can be marked as a timing item or excluded. Exclusion requires a reason, records the decision, and does not change either balance. Undo can reverse a rejected suggestion or a resolution.
 
-The top-level **Open**, **AI Suggested**, **Bank only**, **Ledger only**, and **Resolved** tabs each retain separate Bank statement and General ledger lists. AI Suggested counts transactions shown across both lists, while the summary card counts candidate pairs. Bank only and Ledger only include items left without a suggestion after an AI scan or a rejected match. Search narrows both lists. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
+The top-level **Open**, **AI Suggested**, **Bank only**, **Ledger only**, and **Resolved** tabs filter one combined transaction list. Each row has a BANK or LEDGER source tag. AI Suggested counts transactions shown in the list, while the summary card counts candidate pairs. Bank only and Ledger only include items left without a suggestion after an AI scan or a rejected match. Search narrows the current list. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
 
 ## Reconciliation logic
 
@@ -26,7 +26,7 @@ AI Match is an explainable, local simulation for the exercise, not a live AI ser
 
 ## Design decisions
 
-- Put top-level status tabs above separate Bank statement and General ledger queues, with transaction evidence alongside them, so Maya can review context without losing her place.
+- Put top-level status tabs above one combined transaction queue, with BANK and LEDGER tags and transaction evidence alongside it, so Maya can review context without losing her place.
 - Keep AI Match suggestions as recommendations. Maya sees the evidence and can confirm or reject each pair because similar amount and date alone are insufficient evidence.
 - Distinguish missing book entries from legitimate timing differences. An unmatched item is not automatically wrong.
 - Treat the Stripe amount difference as a proposed adjustment that needs explicit human confirmation.
