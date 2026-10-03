@@ -19,6 +19,7 @@ const items = [
 const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', history: [], activity: [], aiScanned: false, toastTimer: null };
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const listMoney = amount => amount < 0 ? `(${money(-amount)})` : `+${money(amount)}`;
 const signedMoney = amount => `${amount > 0 ? '+' : amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const escapeHTML = value => String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 const openItems = () => items.filter(item => !state.resolved[item.id]);
@@ -204,17 +205,13 @@ function renderList() {
   const query = $('search').value.trim().toLowerCase();
   const shown = tabItems(state.tab).filter(item =>
     `${item.name} ${item.ref} ${item.amount}`.toLowerCase().includes(query)
-  );
-  for (const side of ['bank', 'ledger']) {
-    const rows = shown.filter(item => item.side === side);
-    const label = { open: 'Open', suggested: 'AI Suggested', 'bank-only': 'Bank only', 'ledger-only': 'Ledger only', resolved: 'Resolved' }[state.tab];
-    $(`${side}VisibleCount`).textContent = `${rows.length} ${state.tab === 'open' ? 'open' : state.tab === 'resolved' ? 'resolved' : 'items'}`;
-    $(`${side}List`).innerHTML = rows.length ? rows.map(item => `<button type="button" class="row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.name}, ${money(item.amount)}">
-      <span class="type-icon ${item.side === 'ledger' ? 'ledger' : ''}">${item.side === 'bank' ? '↘' : '▤'}</span>
-      <span class="row-main"><span class="row-title">${item.name}</span><span class="row-meta">${item.date} · ${item.ref}</span></span>
-      <span class="row-right"><span class="amount">${money(item.amount)}</span><br><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
-    </button>`).join('') : `<div class="empty-list">No ${side === 'bank' ? 'bank' : 'ledger'} transactions in ${label}${query ? ' match this search' : ''}.</div>`;
-  }
+  ).sort((a, b) => a.side === b.side ? dateNumber(b) - dateNumber(a) : a.side === 'bank' ? -1 : 1);
+  const label = { open: 'open', suggested: 'suggested', 'bank-only': 'bank-only', 'ledger-only': 'ledger-only', resolved: 'resolved' }[state.tab];
+  $('transactionsVisibleCount').textContent = `${shown.length} ${label}`;
+  $('transactionList').innerHTML = shown.length ? shown.map(item => `<button type="button" class="row combined-row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.side === 'bank' ? 'Bank statement' : 'General ledger'}: ${item.name}, ${money(item.amount)}">
+    <span class="combined-main"><span class="combined-title"><span class="source-chip ${item.side}">${item.side === 'bank' ? 'BANK' : 'LEDGER'}</span><span class="row-title">${item.name}</span></span><span class="row-meta">${item.date} &nbsp; ${item.ref}</span></span>
+    <span class="combined-right"><span class="amount ${item.amount < 0 ? 'negative' : 'positive'}">${listMoney(item.amount)}</span><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
+  </button>`).join('') : `<div class="empty-list">${query ? 'No transactions match this search.' : state.tab === 'suggested' && !state.aiScanned ? 'Run AI Match to see suggested transactions.' : `No transactions in ${label}.`}</div>`;
   document.querySelectorAll('.row').forEach(row => row.onclick = () => { state.selected = row.dataset.id; render(); });
 }
 
