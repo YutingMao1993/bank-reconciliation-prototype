@@ -11,7 +11,7 @@ Open `dist/index.html` in a browser, or use the published URL. Start with **AI M
 3. Mark the $1,900 deposit in transit and $860 outstanding check as October timing differences.
 4. Review the balance check, then select **Finish reconciliation**.
 
-Search and source filters narrow the list. The Resolved tab shows reviewed items. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
+The top-level **Open** and **Resolved** tabs each show separate Bank statement and General ledger lists. Search narrows both lists. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
 
 ## Reconciliation logic
 
@@ -23,7 +23,7 @@ AI Match is an explainable, local simulation for the exercise, not a live AI ser
 
 ## Design decisions
 
-- Put the exception queue and transaction evidence side by side so Maya can review context without losing her place.
+- Put top-level status tabs above separate Bank statement and General ledger queues, with transaction evidence alongside them, so Maya can review context without losing her place.
 - Keep AI Match suggestions as recommendations. Maya sees the evidence and confirms each pair because similar amount and date alone are insufficient evidence.
 - Distinguish missing book entries from timing differences; these have different accounting treatments.
 - Show adjusted balances throughout, but enable finishing only after all 14 transactions have an explicit resolution.
