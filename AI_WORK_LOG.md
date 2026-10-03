@@ -16,6 +16,6 @@ Codex generated and edited the HTML, CSS, and JavaScript, and helped reason thro
 
 ## Discussion notes
 
-The biggest unresolved product questions are the evidence threshold for suggesting a match, how a reviewer approves posted entries, and how October follow-up is enforced. The prototype hardcodes the five match candidates, so it does not demonstrate an actual matching model.
+The biggest unresolved product questions are the evidence threshold for suggesting a match, how a reviewer approves posted entries, and how October follow-up is enforced. AI Match now generates candidates with local, explainable rules; it does not demonstrate an actual AI model or calibrated confidence.
 
-The JavaScript uses a shared `state` object. `resolve()` changes that state and `render()` rebuilds visible UI from it. A useful interview discussion is whether the generated event wiring and string-built HTML are maintainable and safe with real transaction data; escaping, data validation, and component-level tests would be needed before shipping.
+The JavaScript uses a shared `state` object. `computeSuggestions()` ranks open bank/ledger candidates, `resolve()` changes state, and `render()` rebuilds visible UI from it. A useful interview discussion is whether the generated event wiring and string-built HTML are maintainable and safe with real transaction data; escaping, data validation, and component-level tests would be needed before shipping.
