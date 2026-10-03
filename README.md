@@ -27,6 +27,7 @@ AI Match is an explainable, local simulation for the exercise, not a live AI ser
 ## Design decisions
 
 - Put Open and Resolved at the top level, with All and source or suggestion filters inside Open. The combined queue uses BANK and LEDGER tags, with transaction evidence alongside it.
+- Use a light, grouped navigation rail inspired by Campfire's product sidebar. Reconciliation appears within an expanded Accounting section; links outside this exercise show a demo-only message.
 - Keep AI Match suggestions as recommendations. Maya sees the evidence and can confirm or reject each pair because similar amount and date alone are insufficient evidence.
 - Distinguish missing book entries from legitimate timing differences. An unmatched item is not automatically wrong.
 - Treat the Stripe amount difference as a proposed adjustment that needs explicit human confirmation.

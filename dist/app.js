@@ -404,5 +404,6 @@ $('resetBtn').onclick = () => {
 };
 $('aiMatchBtn').onclick = runAIMatch;
 $('finishBtn').onclick = showFinish;
+document.querySelectorAll('[data-demo-nav]').forEach(button => button.onclick = () => toast('This section is outside the reconciliation demo'));
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
 render();
