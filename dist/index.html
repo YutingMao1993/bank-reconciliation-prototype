@@ -36,12 +36,14 @@
       .nav-tree{flex:1;min-height:0;overflow-y:auto;align-content:start;overscroll-behavior:contain;scrollbar-width:thin}
       .side-bottom{display:block;flex:none;margin-top:0}
     }
+    .brand-logo{display:block;width:48px;height:48px;object-fit:contain}
+    @media(max-width:760px){.brand-logo{width:38px;height:38px}}
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar" aria-label="Main navigation">
-      <div class="brand"><span class="brand-mark">c</span> campfire</div>
+      <div class="brand"><img class="brand-logo" src="./campfire-icon.png" alt="Campfire" width="48" height="48" /></div>
       <nav class="nav nav-tree" aria-label="Finance navigation">
         <button class="nav-link" type="button" data-demo-nav>Home</button>
         <details class="nav-group"><summary>Reporting<span class="nav-caret" aria-hidden="true"></span></summary><div class="nav-children"><button type="button" data-demo-nav>Reports</button></div></details>
