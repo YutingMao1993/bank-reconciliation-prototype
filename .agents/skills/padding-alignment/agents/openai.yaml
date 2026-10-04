@@ -1,0 +1,4 @@
+interface:
+  display_name: "Padding Alignment"
+  short_description: "Fix header spacing, dropdowns, and clipped buttons"
+  default_prompt: "Use $padding-alignment to fix inconsistent spacing and clipped controls in this interface, then verify the affected layouts and interactions."
