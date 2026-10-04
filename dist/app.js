@@ -177,7 +177,7 @@ function render() {
   const suggestions = visibleSuggestions();
   const suggestedTransactions = tabItems('suggested').length;
   $('progressNum').textContent = `${resolved} of 14`;
-  $('progressSub').textContent = state.completed ? 'Ready for review' : resolved === 14 ? 'All transactions reviewed' : `${open.length} transaction${open.length === 1 ? '' : 's'} need attention`;
+  $('progressSub').textContent = state.completed ? 'Approved in this demo' : resolved === 14 ? 'All transactions reviewed' : `${open.length} transaction${open.length === 1 ? '' : 's'} need attention`;
   $('progressFill').style.width = `${resolved / 14 * 100}%`;
   $('sideCount').textContent = open.length;
   $('suggestedCount').textContent = suggestedTransactions;
@@ -197,14 +197,16 @@ function render() {
   $('aiMatchBtn').textContent = `✦ AI Suggestions · ${suggestions.length}`;
   $('aiMatchBtn').disabled = open.length === 0;
   const balance = balanceSnapshot();
-  $('finishBtn').disabled = resolved !== 14 || balance.differenceCents !== 0;
-  $('finishBtn').textContent = state.completed ? 'View Review Summary' : 'Review Reconciliation';
+  $('finishBtn').disabled = open.length !== 0;
+  $('finishBtn').setAttribute('aria-describedby', 'finishHint');
+  $('finishHint').textContent = open.length ? `Resolve all ${items.length} transactions to enable review.` : state.completed ? 'Approval recorded in this demo session.' : balance.differenceCents ? 'All transactions resolved. Review the remaining balance difference before approval.' : 'All transactions resolved and balances agree. Ready for your review.';
+  $('finishBtn').textContent = state.completed ? 'View Approval' : 'Review Reconciliation';
   $('timingTotal').textContent = signedMoney(balance.timingCents / 100);
   $('adjustedBank').textContent = money(balance.adjustedBankCents / 100);
   $('adjustedLedger').textContent = money(balance.adjustedLedgerCents / 100);
   $('balanceDifference').textContent = money(Math.abs(balance.differenceCents) / 100);
   $('balanceDifference').className = balance.differenceCents === 0 ? 'difference-clear' : 'difference-open';
-  $('balanceStatus').textContent = state.completed ? 'Ready for review · $0.00 difference' : balance.differenceCents === 0 ?
+  $('balanceStatus').textContent = state.completed ? 'Approved in demo · $0.00 difference' : balance.differenceCents === 0 ?
     (open.length ? `Balances agree · ${open.length} items still need review` : 'All items explained · $0.00 difference') :
     `${money(Math.abs(balance.differenceCents) / 100)} difference · ${open.length} items open`;
   document.querySelectorAll('.tab').forEach(tab => {
@@ -220,6 +222,7 @@ function render() {
   renderList();
   renderDetail();
   renderActivity();
+  renderReviewRoute();
 }
 
 function rowBadge(item) {
@@ -471,36 +474,108 @@ function showAIMatches() {
 }
 
 function showFinish() {
-  if (openItems().length || balanceSnapshot().differenceCents !== 0) return;
-  if (state.completed) { showReady(); return; }
-  const count = action => Object.values(state.resolved).filter(result => result.action === action).length;
-  const balance = money(balanceSnapshot().adjustedBankCents / 100);
-  const reviewRows = action => items.filter(item => state.resolved[item.id]?.action === action && (action !== 'adjustment' || item.side === 'bank'))
-    .map(item => `<li><strong>${escapeHTML(item.name)}</strong><span>${money(item.amount)}${state.resolved[item.id].note ? ` · ${escapeHTML(state.resolved[item.id].note)}` : ''}</span></li>`).join('');
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="final-card review-modal" role="dialog" aria-modal="true" aria-labelledby="finishTitle"><div class="ai-kicker">Final Review</div><h2 id="finishTitle">Review Before Marking Ready</h2><p>All 14 transactions are explained. Adjusted bank and ledger balances both equal <strong>${balance}</strong>, with a <strong>$0.00 difference</strong>.</p><div class="review-summary"><span>${count('match') / 2} direct pairs matched</span><span>${count('adjustment') / 2} adjusted pair</span><span>${count('entry')} new ledger entries</span><span>${count('timing')} carry forward</span><span>${count('exclude')} excluded</span></div><div class="review-section"><h3>Adjustment and New Entries</h3><ul>${reviewRows('adjustment')}${reviewRows('entry')}</ul></div><div class="review-section"><h3>Carry Forward to Next Period</h3><ul>${reviewRows('timing') || '<li>None</li>'}</ul></div><div class="review-section"><h3>Excluded from This Reconciliation</h3><ul>${reviewRows('exclude') || '<li>None</li>'}</ul></div><label class="review-confirm"><input id="reviewCheck" type="checkbox" /> I reviewed the adjustments, exclusions, and items that need next-period follow-up.</label><div class="final-actions"><button class="primary" id="confirmReview" type="button" disabled>Mark Ready for Review</button><button class="ghost" id="inspectResolved" type="button">Inspect Resolved Items</button></div><p class="task-hint">Demo only. A real close also requires durable audit records, approval, and source-statement verification.</p></div></div>`;
-  $('reviewCheck').onchange = () => $('confirmReview').disabled = !$('reviewCheck').checked;
-  $('inspectResolved').onclick = () => {
-    closeModal();
-    state.tab = 'resolved';
-    state.selected = tabItems('resolved')[0]?.id || null;
-    render();
-  };
-  $('confirmReview').onclick = () => {
-    if (!$('reviewCheck').checked) return;
-    state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
-    state.completed = true;
-    state.activity.unshift({ label: 'Marked reconciliation ready for review', origin: 'Final review · Maya confirmed', time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), actor: 'Maya Chen', note: '' });
-    render();
-    showReady();
-  };
-  $('reviewCheck').focus();
+  if (openItems().length) return;
+  closeModal();
+  navigateReview(state.completed ? 'approved' : 'review');
 }
 
-function showReady() {
-  const balance = money(balanceSnapshot().adjustedBankCents / 100);
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="final-card" role="dialog" aria-modal="true" aria-labelledby="finishTitle"><div class="check">✓</div><h2 id="finishTitle">Ready for Review</h2><p>Maya reviewed all 14 transactions. The adjusted balances both equal <strong>${balance}</strong>, with a <strong>$0.00 difference</strong>. Timing items remain on the next-period follow-up list.</p><p>This demo does not post to a ledger or approve a real close.</p><div class="final-actions"><button class="primary" id="closeModal" type="button">Back to Reconciliation</button></div></div></div>`;
-  $('closeModal').onclick = closeModal;
+function navigateReview(route) {
+  if (window.location.hash === `#${route}`) renderReviewRoute(true);
+  else window.location.hash = route;
 }
+
+function returnToTransactions() {
+  state.tab = 'resolved';
+  state.selected = tabItems('resolved')[0]?.id || null;
+  $('search').value = '';
+  navigateReview('transactions');
+  render();
+}
+
+function reviewItems(action) {
+  return items.filter(item => state.resolved[item.id]?.action === action &&
+    (!['match', 'adjustment'].includes(action) || item.side === 'bank'));
+}
+
+function reviewList(action) {
+  const rows = reviewItems(action);
+  if (!rows.length) return '<p class="approval-empty">None in this reconciliation.</p>';
+  return `<ul class="approval-list">${rows.map(item => {
+    const result = state.resolved[item.id];
+    const amount = action === 'adjustment' ? -290 : item.amount;
+    return `<li><div><strong>${escapeHTML(item.name)}</strong><p>${escapeHTML(result.label)}</p>${result.note ? `<p class="approval-note">Note: ${escapeHTML(result.note)}</p>` : ''}</div><span>${money(amount)}</span></li>`;
+  }).join('')}</ul>`;
+}
+
+function reviewSteps(approved = false) {
+  return `<ol class="approval-steps" aria-label="Reconciliation progress"><li class="done">✓ Resolve Transactions</li><li class="${approved ? 'done' : 'current'}" ${approved ? '' : 'aria-current="step"'}>${approved ? '✓' : '2'} Review</li><li class="${approved ? 'current' : ''}" ${approved ? 'aria-current="step"' : ''}>${approved ? '✓' : '3'} Approval</li></ol>`;
+}
+
+function renderReviewPage() {
+  const balance = balanceSnapshot();
+  const balanced = balance.differenceCents === 0;
+  const count = action => reviewItems(action).length;
+  $('reviewPage').innerHTML = `<button class="approval-back" id="reviewBack" type="button">← Back to Transactions</button>${reviewSteps()}
+    <div class="approval-heading"><div class="eyebrow">Final Review</div><h1 id="reviewPageTitle" tabindex="-1">Review Reconciliation</h1><p>Operating Account · First National Bank ·•• 4821 · September 2026</p></div>
+    <div class="approval-status ${balanced ? '' : 'needs-attention'}"><strong>${balanced ? '✓ All transactions resolved. Balances agree.' : 'A balance difference still needs your attention.'}</strong><p>${balanced ? 'Review the decisions below, then approve this reconciliation.' : 'You can review all resolutions, but approval stays unavailable until the difference is zero. Return to Transactions to inspect and undo any incorrect resolution.'}</p></div>
+    <section class="approval-balances" aria-label="Balances to approve"><div><span>Adjusted Bank Balance</span><strong>${money(balance.adjustedBankCents / 100)}</strong></div><div><span>Adjusted Ledger Balance</span><strong>${money(balance.adjustedLedgerCents / 100)}</strong></div><div class="${balanced ? 'success' : 'difference-open'}"><span>Difference</span><strong>${money(Math.abs(balance.differenceCents) / 100)}</strong></div></section>
+    <div class="review-summary"><span>${items.length} transactions resolved</span><span>${count('match')} direct pairs</span><span>${count('adjustment')} adjusted pair${count('adjustment') === 1 ? '' : 's'}</span><span>${count('entry')} new entries</span><span>${count('timing')} carry forward</span><span>${count('exclude')} excluded</span></div>
+    <div class="approval-layout"><div class="approval-sections">
+      <section class="approval-section"><h2>Matched Transactions <span>${count('match')} pairs</span></h2>${reviewList('match')}</section>
+      <section class="approval-section"><h2>Adjustments <span>${count('adjustment')}</span></h2>${reviewList('adjustment')}</section>
+      <section class="approval-section"><h2>New Ledger Entries <span>${count('entry')}</span></h2>${reviewList('entry')}</section>
+      <section class="approval-section"><h2>Carry Forward <span>${count('timing')}</span></h2><p class="approval-description">These items remain outstanding for follow-up in the next period.</p>${reviewList('timing')}</section>
+      <section class="approval-section"><h2>Excluded Transactions <span>${count('exclude')}</span></h2>${reviewList('exclude')}</section>
+    </div><aside class="approval-decision" aria-label="Your approval"><div class="ai-kicker">Your Approval</div><h2>Ready to Sign Off?</h2><p>Review the matching decisions, recorded entries, and any items carried forward.</p><div class="approval-reviewer"><span class="avatar" aria-hidden="true">M</span><div><strong>Maya Chen</strong><span>Reviewer · Demo Session</span></div></div><label class="review-confirm"><input id="reviewCheck" type="checkbox" ${balanced ? '' : 'disabled'} /> I have reviewed the balances, adjustments, exclusions, and carry-forward items.</label><button class="primary approval-submit" id="confirmReview" type="button" disabled aria-describedby="approvalHelp">Approve Reconciliation</button><p class="task-hint" id="approvalHelp">${balanced ? 'Select the confirmation above to enable approval.' : 'Resolve the balance difference before approving.'}</p><p class="approval-demo">Demo approval only. No entries are posted to a real ledger. Changes last for this session.</p></aside></div>`;
+  $('reviewBack').onclick = returnToTransactions;
+  $('reviewCheck').onchange = () => {
+    $('confirmReview').disabled = !$('reviewCheck').checked || balanceSnapshot().differenceCents !== 0 || openItems().length > 0;
+    $('approvalHelp').textContent = $('reviewCheck').checked ? 'Your approval will be recorded in the review activity.' : 'Select the confirmation above to enable approval.';
+  };
+  $('confirmReview').onclick = () => {
+    if (state.completed || !$('reviewCheck').checked || openItems().length || balanceSnapshot().differenceCents !== 0) return;
+    state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
+    state.completed = true;
+    state.activity.unshift({ label: 'Approved reconciliation (demo)', origin: 'Final review · Maya approved', time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), actor: 'Maya Chen', note: '', kind: 'approval' });
+    render();
+    navigateReview('approved');
+  };
+}
+
+function renderApprovalPage() {
+  const balance = balanceSnapshot();
+  const approval = state.activity.find(entry => entry.kind === 'approval');
+  const carryCount = reviewItems('timing').length;
+  $('reviewPage').innerHTML = `${reviewSteps(true)}<section class="approval-success"><div class="approval-check" aria-hidden="true">✓</div><div class="eyebrow">Approval Confirmed · Demo</div><h1 id="reviewPageTitle" tabindex="-1">Reconciliation Approved</h1><p>Operating Account · September 2026</p><p class="approval-record">Approved by ${escapeHTML(approval?.actor || 'Maya Chen')}${approval ? ` at ${escapeHTML(approval.time)}` : ''}</p><div class="approval-receipt"><div><span>Transactions Resolved</span><strong>${items.length} of ${items.length}</strong></div><div><span>Reconciled Balance</span><strong>${money(balance.adjustedBankCents / 100)}</strong></div><div><span>Difference</span><strong>$0.00</strong></div></div><div class="approval-followup"><strong>${carryCount ? `${carryCount} item${carryCount === 1 ? '' : 's'} carried forward` : 'No items carried forward'}</strong><p>${carryCount ? 'Outstanding items still need follow-up in the next period. Your approval and resolution history are available in Review Activity.' : 'Your approval and resolution history are available in Review Activity.'}</p></div><div class="approval-success-actions"><button class="primary" id="approvalBack" type="button">Back to Reconciliation</button><button class="ghost" id="undoApproval" type="button">Undo Approval</button></div><p class="approval-demo">This confirms approval in the demo only. No real reconciliation is approved and no ledger entries are posted.</p></section>`;
+  $('approvalBack').onclick = returnToTransactions;
+  $('undoApproval').onclick = () => {
+    if (!state.completed || state.activity[0]?.kind !== 'approval') return;
+    undoLast();
+    navigateReview('review');
+  };
+}
+
+function renderReviewRoute(focus = false) {
+  const requested = ['#review', '#approved'].includes(window.location.hash);
+  const visible = requested && openItems().length === 0;
+  $('reconciliationView').hidden = visible;
+  $('reviewPage').hidden = !visible;
+  if (requested && !visible) history.replaceState(null, '', window.location.pathname + window.location.search);
+  if (visible) {
+    closeModal();
+    clearTimeout(state.toastTimer);
+    $('toastMount').innerHTML = '';
+    if (state.completed) renderApprovalPage();
+    else renderReviewPage();
+  }
+  document.title = visible ? `${state.completed ? 'Reconciliation Approved' : 'Review Reconciliation'} · Campfire` : 'Bank Reconciliation · Campfire';
+  if (focus) {
+    window.scrollTo(0, 0);
+    (visible ? $('reviewPageTitle') : $('finishBtn')).focus({ preventScroll: true });
+  }
+}
+
+window.addEventListener('hashchange', () => renderReviewRoute(true));
 
 $('search').addEventListener('input', () => {
   const candidates = displayItems();
