@@ -248,6 +248,7 @@ function renderList() {
 }
 
 function renderDetail() {
+  closeCategoryPicker();
   const item = items.find(entry => entry.id === state.selected);
   if (!item) {
     $('detailIndex').textContent = '';
@@ -268,7 +269,7 @@ function renderDetail() {
     body += `<div class="section-title">✦ AI Suggestion <span class="signal adjust" style="margin-left:7px">Needs Adjustment</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank Statement' : 'General Ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
       <div class="rule"></div><div class="section-title">Review Proposed Fee Entry</div><div class="adjustment-box"><strong>Possible Net Deposit</strong><p>The $290.00 difference may be a processing fee. Verify it against the payout report before confirming.</p><div class="balance-preview"><span>Gross Ledger Receipt</span><span>$12,770.75</span></div><div class="balance-preview"><span>Proposed Processing Fee</span><span>−$290.00</span></div><div class="balance-preview"><span>Bank Deposit</span><span>$12,480.75</span></div></div>
-      <label class="formline">Fee Account<select id="adjustmentAccount"><option>Payment processing fees</option><option>Needs further review</option></select></label><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Match + Record $290 Fee</button><button class="ghost" id="findMatchBtn" type="button">Find Another Match</button><button class="ghost" id="notMatchBtn" type="button">Not a Match</button></div><p class="info">Demo action only. This does not post to a real ledger.</p>`;
+      <div class="formline fee-account"><span id="adjustmentAccountLabel">Fee Account</span><div class="category-picker"><button class="category-trigger" id="adjustmentAccountTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="adjustmentAccountOptions" aria-labelledby="adjustmentAccountLabel adjustmentAccountValue"><span id="adjustmentAccountValue">Payment processing fees</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="adjustmentAccountOptions" role="listbox" aria-labelledby="adjustmentAccountLabel" hidden><button class="category-option" type="button" role="option" aria-selected="true" data-value="Payment processing fees">Payment processing fees</button><button class="category-option" type="button" role="option" aria-selected="false" data-value="Needs further review">Needs further review</button></div><input id="adjustmentAccount" type="hidden" value="Payment processing fees"></div></div><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Match + Record $290 Fee</button><button class="ghost" id="findMatchBtn" type="button">Find Another Match</button><button class="ghost" id="notMatchBtn" type="button">Not a Match</button></div><p class="info">Demo action only. This does not post to a real ledger.</p>`;
   } else if (partner) {
     body += `<div class="section-title">✦ AI Match Suggestion <span class="signal ${suggestion.score < 90 ? 'review' : ''}" style="margin-left:7px">${suggestion.strength}</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank Statement' : 'General Ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
@@ -283,6 +284,7 @@ function renderDetail() {
   }
   $('detailBody').innerHTML = body;
   if ($('matchBtn')) $('matchBtn').onclick = () => resolve([item.id, partner.id], 'match', `Matched ${item.name} with ${partner.name}`, 'AI suggested · Maya confirmed');
+  if ($('adjustmentAccount')) bindCategoryPicker('adjustmentAccount');
   if ($('adjustBtn')) $('adjustBtn').onclick = () => {
     if ($('adjustmentAccount').value === 'Needs further review') { toast('Choose a fee account before confirming'); return; }
     resolve([item.id, partner.id], 'adjustment', `Matched Stripe payout and recorded $290.00 processing fee`, 'AI suggested · Maya verified adjustment');
@@ -296,7 +298,7 @@ function renderDetail() {
   if ($('undoDetail')) $('undoDetail').onclick = undoLast;
 }
 
-function closeModal() { $('modalMount').innerHTML = ''; }
+function closeModal() { closeCategoryPicker(); $('modalMount').innerHTML = ''; }
 
 function showManualMatch(item) {
   const opposite = item.side === 'bank' ? 'ledger' : 'bank';
@@ -346,21 +348,28 @@ function showManualMatch(item) {
   $('matchSearch').focus();
 }
 
-function showCreateEntry(item) {
-  const suggested = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
-  const other = item.amount < 0 ? 'Other operating expense' : 'Revenue';
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><div class="task-field"><span id="entryCategoryLabel">Category</span><div class="category-picker"><button class="category-trigger" id="entryCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="entryCategoryLabel entryCategoryValue"><span id="entryCategoryValue">Select a category...</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="entryCategoryOptions" role="listbox" aria-labelledby="entryCategoryLabel" hidden><button class="category-option" type="button" role="option" aria-selected="false" data-value="${suggested}">${suggested}<span class="category-suggested">Suggested</span></button><button class="category-option" type="button" role="option" aria-selected="false" data-value="${other}">${other}</button></div><input id="entryCategory" type="hidden" value=""></div></div><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
-  const trigger = $('entryCategoryTrigger');
-  const options = $('entryCategoryOptions');
+let closeCategoryPicker = () => {};
+
+function bindCategoryPicker(id, onChange = () => {}) {
+  const trigger = $(id + 'Trigger');
+  const options = $(id + 'Options');
+  const picker = trigger.parentElement;
   const choices = [...options.querySelectorAll('.category-option')];
+  const onOutsideClick = event => { if (!picker.contains(event.target)) setOpen(false); };
   const setOpen = (open, focusOption = false) => {
+    if (open) closeCategoryPicker();
     options.hidden = !open;
     trigger.setAttribute('aria-expanded', String(open));
-    if (open && focusOption) choices[0].focus();
+    document.removeEventListener('click', onOutsideClick);
+    if (open) {
+      closeCategoryPicker = () => setOpen(false);
+      document.addEventListener('click', onOutsideClick);
+      if (focusOption) (choices.find(option => option.getAttribute('aria-selected') === 'true') || choices[0]).focus();
+    }
   };
   trigger.onclick = () => setOpen(options.hidden, options.hidden);
   trigger.onkeydown = event => {
-    if (event.key === 'Escape' && !options.hidden) {
+    if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
       setOpen(false);
@@ -371,11 +380,12 @@ function showCreateEntry(item) {
     }
   };
   choices.forEach((choice, index) => {
+    choice.tabIndex = -1;
     choice.onclick = () => {
-      $('entryCategory').value = choice.dataset.value;
-      $('entryCategoryValue').textContent = choice.dataset.value;
-      $('confirmEntryBtn').disabled = false;
+      $(id).value = choice.dataset.value;
+      $(id + 'Value').textContent = choice.dataset.value;
       choices.forEach(option => option.setAttribute('aria-selected', String(option === choice)));
+      onChange(choice.dataset.value);
       setOpen(false);
       trigger.focus();
     };
@@ -385,20 +395,24 @@ function showCreateEntry(item) {
         event.stopPropagation();
         setOpen(false);
         trigger.focus();
-      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
         event.preventDefault();
-        choices[(index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length].focus();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+        choices[next].focus();
       }
     };
   });
-  $('modalMount').onclick = event => {
-    if (!event.target.closest('.category-picker')) setOpen(false);
-  };
-  options.parentElement.onfocusout = () => {
-    requestAnimationFrame(() => {
-      if (!options.parentElement.contains(document.activeElement)) setOpen(false);
-    });
-  };
+  picker.onfocusout = () => requestAnimationFrame(() => {
+    if (!picker.contains(document.activeElement)) setOpen(false);
+  });
+}
+
+function showCreateEntry(item) {
+  const suggested = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
+  const other = item.amount < 0 ? 'Other operating expense' : 'Revenue';
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><div class="task-field"><span id="entryCategoryLabel">Category</span><div class="category-picker"><button class="category-trigger" id="entryCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="entryCategoryLabel entryCategoryValue"><span id="entryCategoryValue">Select a category...</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="entryCategoryOptions" role="listbox" aria-labelledby="entryCategoryLabel" hidden><button class="category-option" type="button" role="option" aria-selected="false" data-value="${suggested}">${suggested}<span class="category-suggested">Suggested</span></button><button class="category-option" type="button" role="option" aria-selected="false" data-value="${other}">${other}</button></div><input id="entryCategory" type="hidden" value=""></div></div><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  const trigger = $('entryCategoryTrigger');
+  bindCategoryPicker('entryCategory', () => { $('confirmEntryBtn').disabled = false; });
   $('confirmEntryBtn').onclick = () => {
     const category = $('entryCategory').value;
     if (!category) return;
