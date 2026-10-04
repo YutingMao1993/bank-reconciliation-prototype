@@ -72,6 +72,17 @@
     .review-modal{width:min(680px,100%);max-height:calc(100vh - 40px);overflow:auto}.review-modal h2{margin:8px 0}.review-summary{display:flex;flex-wrap:wrap;gap:6px;margin:18px 0}.review-summary span{padding:6px 9px;border-radius:6px;background:#ecf6ef;color:#0a4733;font-size:11px;font-weight:700}
     .review-section{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.review-section h3{font-size:13px;margin:0 0 8px}.review-section ul{list-style:none;padding:0;margin:0}.review-section li{display:flex;justify-content:space-between;gap:15px;padding:5px 0;line-height:1.4}.review-section li span{color:#64746a;text-align:right}.review-confirm{display:flex;align-items:start;gap:10px;padding:14px;margin-top:18px;border:1px solid #d8e7d9;border-radius:9px;background:#f4f9f3;font-size:13px;line-height:1.5}.review-confirm input{flex:none;margin-top:3px;accent-color:#0a4733}.review-modal .final-actions{flex-wrap:wrap}.review-modal .final-actions .primary:disabled{opacity:.5}
     @media(max-width:760px){.manual-match-option{padding:11px}.review-section li{display:block}.review-section li span{display:block;text-align:left;margin-top:2px}.review-modal{padding:22px}}
+    /* Allow header content to reflow before the sidebar makes it too narrow. */
+    @media(max-width:1100px){
+      .heading{display:block}
+      .heading-actions{flex-wrap:wrap;margin-top:17px}
+      .heading-actions button{min-width:0;white-space:normal}
+    }
+    @media(max-width:760px){
+      .topline{height:auto;min-height:47px;flex-wrap:wrap;gap:8px;padding:10px 16px}
+      .crumb{min-width:0;flex-wrap:wrap}
+      .demo{flex:none;max-width:100%}
+    }
   </style>
 </head>
 <body>
