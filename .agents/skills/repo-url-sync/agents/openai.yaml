@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repository URL Sync"
+  short_description: "Sync selected GitHub branches with their site URLs"
+  default_prompt: "Use $repo-url-sync to sync the selected repositories and branches to their mapped preview and live URLs, then verify each deployment."
