@@ -16,7 +16,7 @@ const items = [
   { id: 'l7', side: 'ledger', date: 'Sep 29', name: 'Office supplies check', amount: -860, ref: 'Check · #1048', kind: 'check' }
 ];
 
-const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', filter: 'open', history: [], activity: [], aiScanned: false, completed: false, toastTimer: null };
+const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', filter: 'open', history: [], activity: [], completed: false, toastTimer: null };
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const listMoney = amount => amount < 0 ? `(${money(-amount)})` : `+${money(amount)}`;
@@ -67,10 +67,9 @@ function computeSuggestions() {
   });
 }
 
-function visibleSuggestions() { return state.aiScanned ? computeSuggestions() : []; }
+function visibleSuggestions() { return computeSuggestions(); }
 function suggestionFor(item) { return visibleSuggestions().find(s => s.bank.id === item.id || s.ledger.id === item.id); }
 function aiFilterIds() {
-  if (!state.aiScanned) return new Set(openItems().filter(item => !item.kind && !rejectedFor(item)).map(item => item.id));
   return new Set(visibleSuggestions().flatMap(s => [s.bank.id, s.ledger.id]));
 }
 function tabItems(tab) {
@@ -182,10 +181,8 @@ function render() {
   $('progressFill').style.width = `${resolved / 14 * 100}%`;
   $('sideCount').textContent = open.length;
   $('suggestedCount').textContent = suggestedTransactions;
-  $('suggestedSummaryLabel').textContent = state.aiScanned ? 'AI Suggested Transactions' : 'Ready to Scan';
-  $('pairSub').textContent = state.aiScanned ?
-    (suggestions.length ? `${suggestions.length} pair${suggestions.length === 1 ? '' : 's'} to review` : 'No suggestions remain') :
-    'Transactions ready to scan';
+  $('suggestedSummaryLabel').textContent = 'AI Suggested';
+  $('pairSub').textContent = suggestions.length ? `${suggestions.length} pair${suggestions.length === 1 ? '' : 's'} to review · ${suggestedTransactions} transactions` : 'No suggestions remain';
   $('bankCount').textContent = tabItems('bank-only').length;
   $('ledgerCount').textContent = tabItems('ledger-only').length;
   $('bankSub').textContent = 'Find a match or create an entry';
@@ -193,11 +190,11 @@ function render() {
   $('openTabCount').textContent = open.length;
   $('allFilterCount').textContent = open.length;
   $('suggestedTabCount').textContent = suggestedTransactions;
-  $('suggestedFilterLabel').textContent = state.aiScanned ? 'AI Suggested' : 'Ready to Scan';
+  $('suggestedFilterLabel').textContent = 'AI Suggested';
   $('bankOnlyTabCount').textContent = tabItems('bank-only').length;
   $('ledgerOnlyTabCount').textContent = tabItems('ledger-only').length;
   $('resolvedTabCount').textContent = resolved;
-  $('aiMatchBtn').textContent = state.aiScanned ? `✦ AI Match · ${suggestions.length}` : '✦ AI Match';
+  $('aiMatchBtn').textContent = `✦ AI Suggestions · ${suggestions.length}`;
   $('aiMatchBtn').disabled = open.length === 0;
   const balance = balanceSnapshot();
   $('finishBtn').disabled = resolved !== 14 || balance.differenceCents !== 0;
@@ -230,20 +227,19 @@ function rowBadge(item) {
   const suggestion = suggestionFor(item);
   if (suggestion) return suggestion.adjustment ? 'Review Adjustment' : 'AI Suggested';
   if (item.kind) return item.side === 'bank' ? 'Create Entry' : item.amount < 0 ? 'Outstanding' : 'In Transit';
-  if (rejectedFor(item) || state.aiScanned) return 'Review Options';
-  return 'Scan for Match';
+  return 'Review Options';
 }
 
 function renderList() {
   const query = $('search').value.trim();
   const shown = displayItems().sort((a, b) => a.side === b.side ? dateNumber(b) - dateNumber(a) : a.side === 'bank' ? -1 : 1);
-  const label = state.tab === 'resolved' ? 'resolved' : state.filter === 'suggested' && !state.aiScanned ? 'ready to scan' : state.filter;
+  const label = state.tab === 'resolved' ? 'resolved' : state.filter;
   const carryCount = state.tab === 'resolved' ? shown.filter(item => state.resolved[item.id]?.action === 'timing').length : 0;
   $('transactionsVisibleCount').textContent = `${shown.length} ${label}${carryCount ? ` · ${carryCount} carry forward` : ''}`;
   $('transactionList').innerHTML = shown.length ? shown.map(item => `<button type="button" class="row combined-row ${state.selected === item.id ? 'selected' : ''} ${state.resolved[item.id] ? 'resolved' : ''}" data-id="${item.id}" aria-label="${item.side === 'bank' ? 'Bank Statement' : 'General Ledger'}: ${item.name}, ${money(item.amount)}">
     <span class="combined-main"><span class="combined-title"><span class="source-chip ${item.side}">${item.side === 'bank' ? 'BANK' : 'LEDGER'}</span><span class="row-title">${item.name}</span></span><span class="row-meta">${item.date} &nbsp; ${item.ref}</span></span>
     <span class="combined-right"><span class="amount ${item.amount < 0 ? 'negative' : 'positive'}">${listMoney(item.amount)}</span><span class="badge ${state.resolved[item.id] ? 'done' : ''}">${rowBadge(item)}</span></span>
-  </button>`).join('') : `<div class="empty-list">${query ? 'No transactions match this search.' : state.tab === 'open' && state.filter === 'suggested' && !state.aiScanned ? 'Run AI Match to see suggested transactions.' : `No transactions in ${label}.`}</div>`;
+  </button>`).join('') : `<div class="empty-list">${query ? 'No transactions match this search.' : `No transactions in ${label}.`}</div>`;
   document.querySelectorAll('.row').forEach(row => row.onclick = () => { state.selected = row.dataset.id; render(); });
 }
 
@@ -252,8 +248,7 @@ function renderDetail() {
   const item = items.find(entry => entry.id === state.selected);
   if (!item) {
     $('detailIndex').textContent = '';
-    $('detailBody').innerHTML = state.tab === 'open' && state.filter === 'suggested' && !state.aiScanned ? '<div class="ai-launch"><div class="section-title">Find Possible Matches</div><p>Run AI Match to see suggested bank and ledger pairs here.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button></div></div>' : `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'No transactions in this view.'}</p>`;
-    if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
+    $('detailBody').innerHTML = `<p class="small-muted">${state.tab === 'resolved' ? 'No resolved transactions yet.' : 'No transactions in this view.'}</p>`;
     return;
   }
   $('detailIndex').textContent = `Item ${items.indexOf(item) + 1} of 14`;
@@ -274,8 +269,6 @@ function renderDetail() {
     body += `<div class="section-title">✦ AI Match Suggestion <span class="signal ${suggestion.score < 90 ? 'review' : ''}" style="margin-left:7px">${suggestion.strength}</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank Statement' : 'General Ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
       <div class="explain">This is a suggestion, not an automatic posting. Confirm the transaction identity before matching.</div><div class="actionrow"><button class="primary" id="matchBtn" type="button">Confirm Match</button><button class="ghost" id="findMatchBtn" type="button">Find Another Match</button><button class="ghost" id="notMatchBtn" type="button">Not a Match</button></div>`;
-  } else if (!item.kind && !rejectedFor(item) && !state.aiScanned) {
-    body += `<div class="ai-launch"><div class="section-title">Find a Possible Match</div><p>Compare this transaction with open entries on the other side.</p><div class="actionrow"><button class="primary" id="detailScanBtn" type="button">✦ Run AI Match</button><button class="ghost" id="findMatchBtn" type="button">Find Match Manually</button></div></div>`;
   } else if (item.side === 'bank') {
     const account = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
     body += `${rejectedFor(item) ? '<p class="rejected-info">AI suggestion marked “Not a match.” Search for another ledger entry before creating one.</p>' : ''}<div class="section-title resolve-kicker">Resolve This Item</div><div class="resolution-actions"><button class="resolution-button" id="findMatchBtn" type="button">Find Ledger Match</button><button class="resolution-button" id="openEntryBtn" type="button">Create Ledger Entry</button><button class="resolution-button danger" id="openExcludeBtn" type="button">Exclude</button></div><p class="info">Suggested category: ${account}. Confirm the account before creating an entry.</p>`;
@@ -289,7 +282,6 @@ function renderDetail() {
     if ($('adjustmentAccount').value === 'Needs further review') { toast('Choose a fee account before confirming'); return; }
     resolve([item.id, partner.id], 'adjustment', `Matched Stripe payout and recorded $290.00 processing fee`, 'AI suggested · Maya verified adjustment');
   };
-  if ($('detailScanBtn')) $('detailScanBtn').onclick = runAIMatch;
   if ($('findMatchBtn')) $('findMatchBtn').onclick = () => showManualMatch(item);
   if ($('notMatchBtn')) $('notMatchBtn').onclick = () => rejectSuggestion(suggestion, item.id);
   if ($('openEntryBtn')) $('openEntryBtn').onclick = () => showCreateEntry(item);
@@ -453,7 +445,7 @@ function showExclude(item) {
 function showAIMatches() {
   const suggestions = visibleSuggestions();
   $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="ai-panel" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
-    <div class="ai-head"><div><div class="ai-kicker">✦ AI Match · Demo</div><h2 id="aiTitle">${suggestions.length} Possible ${suggestions.length === 1 ? 'Match' : 'Matches'}</h2><p>Amount, date and description signals narrow the review. A net deposit may need an adjustment.</p></div><button class="ai-close" id="aiClose" type="button" aria-label="Close AI Match">×</button></div>
+    <div class="ai-head"><div><div class="ai-kicker">✦ AI Suggestions · Demo</div><h2 id="aiTitle">${suggestions.length} Possible ${suggestions.length === 1 ? 'Match' : 'Matches'}</h2><p>Amount, date and description signals narrow the review. A net deposit may need an adjustment.</p></div><button class="ai-close" id="aiClose" type="button" aria-label="Close AI Suggestions">×</button></div>
     <div class="ai-list">${suggestions.length ? suggestions.map((s, index) => `<div class="ai-card"><div class="ai-card-head"><strong>Suggested Pair ${index + 1}</strong><span class="signal ${s.adjustment ? 'adjust' : s.score < 90 ? 'review' : ''}">${s.strength}</span></div><div class="ai-pair"><div class="ai-entry"><small>BANK · ${s.bank.date}</small><b>${s.bank.name}</b><span>${money(s.bank.amount)}</span></div><span class="ai-arrow">↔</span><div class="ai-entry"><small>LEDGER · ${s.ledger.date}</small><b>${s.ledger.name}</b><span>${money(s.ledger.amount)}</span></div></div><div class="ai-evidence">${evidence(s)}</div><div class="ai-card-actions"><button class="ghost" type="button" data-review="${s.bank.id}">${s.adjustment ? 'Review Adjustment' : 'Inspect Details'}</button><button class="ghost" type="button" data-reject="${s.bank.id}">Not a Match</button>${s.adjustment ? '' : `<button class="primary" type="button" data-confirm="${s.bank.id}">Confirm Match</button>`}</div></div>`).join('') : '<div class="empty-list">No candidate pairs remain. Review the bank-only and ledger-only items individually.</div>'}</div>
     <div class="ai-disclaimer">Demo matching logic runs in this browser. Signal labels are review priorities, not calibrated probabilities. Nothing is posted automatically.</div>
   </div></div>`;
@@ -476,13 +468,6 @@ function showAIMatches() {
     resolve([suggestion.bank.id, suggestion.ledger.id], 'match', `Matched ${suggestion.bank.name} with ${suggestion.ledger.name}`, 'AI suggested · Maya confirmed');
     showAIMatches();
   });
-}
-
-function runAIMatch() {
-  state.aiScanned = true;
-  if (!displayItems().some(item => item.id === state.selected)) state.selected = displayItems()[0]?.id || null;
-  render();
-  showAIMatches();
 }
 
 function showFinish() {
@@ -543,14 +528,13 @@ $('resetBtn').onclick = () => {
   state.selected = 'b1';
   state.tab = 'open';
   state.filter = 'open';
-  state.aiScanned = false;
   state.completed = false;
   $('search').value = '';
   closeModal();
   render();
-  toast('Demo reset to 14 open transactions');
+  toast('Demo reset · AI suggestions are ready to review');
 };
-$('aiMatchBtn').onclick = runAIMatch;
+$('aiMatchBtn').onclick = showAIMatches;
 $('finishBtn').onclick = showFinish;
 document.querySelectorAll('[data-demo-nav]').forEach(button => button.onclick = () => toast('This section is outside the reconciliation demo'));
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
