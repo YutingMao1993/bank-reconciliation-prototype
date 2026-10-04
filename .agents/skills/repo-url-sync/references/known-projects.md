@@ -16,6 +16,7 @@ Use these mappings to choose the intended target; verify remote refs, Site owner
 | https://bank-reconciliation-padding-alignment.momoqueen.chatgpt.site/ | `feature/fix-padding-alignment`, dedicated branch preview | `appgprj_6ac19dd0f6ac81919b8ce8fc1529e9f0` | Owner only |
 | https://bank-reconciliation-improve-ai-flow.momoqueen.chatgpt.site/ | `feature/improve-ai-flow`, dedicated branch preview | `appgprj_6ac1b22c6d64819190a66b67e02146c5` | Owner only |
 | https://bank-reconciliation-ui-qa.momoqueen.chatgpt.site/ | `feature/ui-qa`, dedicated branch preview | `appgprj_6ac1bfaabf788191a9bcd9083982f441` | Owner only |
+| https://bank-reconciliation-approval.momoqueen.chatgpt.site/ | `feature/reconciliation-approval`, dedicated branch preview | `appgprj_6ac2881031f88191ac0a77b50a91d264` | Owner only |
 
 The UX checklist URL now follows `main` despite its original feature-branch name. Dedicated feature previews continue to follow their named branches after merge unless the user changes the mapping. Older experiments are outside this active set.
 
