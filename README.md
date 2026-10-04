@@ -4,9 +4,9 @@ An interactive design exercise for a staff accountant reconciling a September op
 
 ## Try the demo
 
-Open `dist/index.html` in a browser, or use the published URL. Start with **AI Match**:
+Open `dist/index.html` in a browser, or use the published URL. AI suggestions are ready immediately:
 
-1. Run AI Match to find five possible bank/ledger pairs. Confirm a direct pair after inspecting its evidence.
+1. Review the five possible bank/ledger pairs shown on first load. Open **AI Suggestions** for the overview, or inspect the selected transaction’s evidence and confirm a direct pair.
 2. Review the Stripe net deposit: the $12,770.75 gross ledger receipt differs from the $12,480.75 bank deposit by $290.00. Verify the proposed processing fee and explicitly confirm **Match + record fee**.
 3. For the $45 bank fee and $12.50 interest, select **Create ledger entry**. Choose a required category and optionally add a note in the confirmation dialog, then select **Create & Clear**.
 4. For the $1,900 deposit and $860 check, select **Resolve this item**, then confirm **Mark Deposit in Transit** or **Mark Outstanding** in the dialog. An optional note records the expected timing.
@@ -14,15 +14,15 @@ Open `dist/index.html` in a browser, or use the published URL. Start with **AI M
 
 Each AI suggestion offers **Not a match** in both the suggestion list and transaction detail. Rejecting a suggestion keeps both transactions open. Each item can search open transactions on the opposite side for a manual match before choosing another resolution. The manual picker shows amount, date, reference, and previously rejected pairs; different amounts cannot be directly matched in this demo. Bank transactions can create a ledger entry or be excluded; ledger entries can be marked as a timing item or excluded. Exclusion requires a reason, records the decision, and does not change either balance. Undo can reverse a rejected suggestion or a resolution.
 
-**Open** and **Resolved** are the top-level statuses. Open always shows every unresolved transaction when its **All** filter is selected. Before AI Match runs, **Ready to scan** contains open transactions that can be scanned; it becomes **AI Suggested** after the scan runs. **Bank only** and **Ledger only** are filters within Open, never separate resolution states. A rejected pair stays in Open so its transactions remain visible for alternative matching or exception review. Each row has a BANK or LEDGER tag. Both the AI Suggested filter and summary card count transactions; the summary subtitle counts candidate pairs after a scan. Search narrows the current view. In Resolved, timing items are marked **Carry forward** and remain due for next-period follow-up. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
+**Open** and **Resolved** are the top-level statuses. Open always shows every unresolved transaction when its **All** filter is selected. **AI Suggested** contains transactions with current candidate matches immediately on first load and after Reset Demo; there is no scan step. **Bank only** and **Ledger only** are filters within Open, never separate resolution states. A rejected pair stays in Open so its transactions remain visible for alternative matching or exception review. Each row has a BANK or LEDGER tag. Both the AI Suggested filter and summary card count transactions; the summary subtitle counts candidate pairs. Search narrows the current view. In Resolved, timing items are marked **Carry forward** and remain due for next-period follow-up. Notes appear in Review activity and the resolved item's detail. **Undo** reverses the most recent action, and **Reset demo** restores the starting state. The page keeps state only while it remains open.
 
 ## Reconciliation logic
 
 The scenario begins with a $486,274.36 bank statement balance and a $487,636.86 ledger balance. Four direct pairs have identical signed amounts. The Stripe pair requires a $290.00 processing-fee adjustment. Recording that fee plus the $45 bank fee and $12.50 interest changes the ledger by −$322.50 to $487,314.36. Carrying the $1,900 deposit in transit less the $860 outstanding check adjusts the bank balance by +$1,040.00 to the same $487,314.36. The summary changes as Maya resolves each item; finishing requires all 14 transactions to be explained **and** a $0.00 difference. If a suggestion is rejected, the summary instead uses the amounts of any individual entries or timing items Maya confirms.
 
-The initial 14 unresolved transactions comprise 10 entries that form five possible pairs, two bank-only transactions, and two ledger-only transactions. The AI summary count represents transactions; its subtitle reports candidate pairs after scanning.
+The initial 14 unresolved transactions comprise 10 entries that form five possible pairs, two bank-only transactions, and two ledger-only transactions. The AI summary count represents transactions; its subtitle reports candidate pairs.
 
-AI Match is an explainable, local simulation for the exercise, not a live AI service. It generates direct pairs from open bank and ledger entries using exact signed amounts, dates within three days, and related description terms. A separate demo rule surfaces a possible Stripe net deposit with a $290.00 difference. No pair IDs are predefined in the data. Each candidate shows evidence and a review-priority signal. The difference is framed as a possible fee until Maya verifies and confirms it. Suggestions never post automatically, and the signal is not a calibrated probability.
+AI Suggestions is an explainable, local simulation for the exercise, not a live AI service. It generates direct pairs from open bank and ledger entries using exact signed amounts, dates within three days, and related description terms. A separate demo rule surfaces a possible Stripe net deposit with a $290.00 difference. No pair IDs are predefined in the data. Each candidate shows evidence and a review-priority signal. The difference is framed as a possible fee until Maya verifies and confirms it. Suggestions never post automatically, and the signal is not a calibrated probability.
 
 ## Design decisions
 
@@ -47,3 +47,7 @@ The visual palette and Denim Regular/Medium font were sampled from [Campfire's p
 ## AI tool discussion prompt
 
 For the interview question about code you kept but do not fully understand, inspect `computeSuggestions()`, `render()`, and `resolve()` in `dist/app.js`. Explain how candidate ranking avoids reusing an item and how a confirmed match updates the queue. If any part remains unclear after reviewing it, describe that specific part honestly and how you would verify it before shipping. Do not claim uncertainty you do not actually have.
+
+## Guidance for coding agents
+
+Start with [AGENTS.md](AGENTS.md) for project commands, UX constraints, and verification guidance. The repository includes three reusable skills in [.agents/skills](.agents/skills): Bank Reconciliation UX, Repository URL Sync, and Padding Alignment. Their instructions can be read by any coding agent; tool availability and hosting access depend on the environment.
