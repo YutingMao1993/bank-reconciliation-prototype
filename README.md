@@ -42,7 +42,7 @@ This prototype has hardcoded transactions, in-memory changes, no bank or ledger 
 
 No dependencies or build step are required. The application is HTML/CSS in `dist/index.html` and JavaScript in `dist/app.js`. The site manifest in `.openai/hosting.json` points hosting to `dist`.
 
-The visual palette was sampled from [Campfire's public website](https://campfire.ai/) in October 2026 for this design exercise. All interface text uses the locally hosted [Inter](https://rsms.me/inter/) variable font, with weights from 100 to 900. Its SIL Open Font License is included in `dist/fonts/Inter-LICENSE.txt`.
+The visual palette was sampled from [Campfire's public website](https://campfire.ai/) in October 2026 for this design exercise. All interface text uses locally hosted [Inter](https://rsms.me/inter/) Regular and Medium fonts. The original weight mapping is preserved: 400 uses Regular, while 500–900 share the Medium face, matching the previous Denim setup. Its SIL Open Font License is included in `dist/fonts/Inter-LICENSE.txt`.
 
 ## AI tool discussion prompt
 
