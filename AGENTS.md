@@ -42,7 +42,7 @@ There is no configured automated test suite. For UI changes, use available brows
 - **Open** and **Resolved** are statuses. **All**, **AI Suggested**, **Bank Only**, and **Ledger Only** filter the open queue. All includes every unresolved item.
 - Suggestions require user confirmation. Rejection leaves items open and supports manual matching or appropriate exception resolution. Preserve Undo and the activity record.
 - AI is simulated using local rules. Preserve the demo disclosure; do not imply a real model call, bank connection, or ledger posting.
-- Completion requires all 14 items explained and a zero adjusted balance difference. Carry-forward items remain timing exceptions, not cleared transactions.
+- Review Reconciliation enables when all 14 items are explained and opens a dedicated review page. Approval requires a zero adjusted balance difference and an explicit review checkbox. Preserve the confirmation page, approval activity entry, and Undo Approval. Carry-forward items remain timing exceptions, not cleared transactions.
 
 ## UI conventions
 

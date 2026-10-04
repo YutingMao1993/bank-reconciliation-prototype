@@ -10,7 +10,8 @@ Open `dist/index.html` in a browser, or use the published URL. AI suggestions ar
 2. Review the Stripe net deposit: the $12,770.75 gross ledger receipt differs from the $12,480.75 bank deposit by $290.00. Verify the proposed processing fee and explicitly confirm **Match + record fee**.
 3. For the $45 bank fee and $12.50 interest, select **Create ledger entry**. Choose a required category and optionally add a note in the confirmation dialog, then select **Create & Clear**.
 4. For the $1,900 deposit and $860 check, select **Resolve this item**, then confirm **Mark Deposit in Transit** or **Mark Outstanding** in the dialog. An optional note records the expected timing.
-5. Check the activity log and the $0.00 balance difference, then select **Review reconciliation**. Inspect adjustments, exclusions, and carry-forward items before marking the demo ready for review.
+5. Once all 14 transactions are resolved, **Review Reconciliation** becomes enabled. Open the dedicated review page to inspect balances, matched pairs, adjustments, new entries, exclusions, and carry-forward items.
+6. When the balance difference is $0.00, select the review confirmation checkbox and **Approve Reconciliation**. The confirmation page records the demo approval and offers **Undo Approval**. Returning to the reconciliation shows **View Approval** and the approval in Review Activity.
 
 Each AI suggestion offers **Not a match** in both the suggestion list and transaction detail. Rejecting a suggestion keeps both transactions open. Each item can search open transactions on the opposite side for a manual match before choosing another resolution. The manual picker shows amount, date, reference, and previously rejected pairs; different amounts cannot be directly matched in this demo. Bank transactions can create a ledger entry or be excluded; ledger entries can be marked as a timing item or excluded. Exclusion requires a reason, records the decision, and does not change either balance. Undo can reverse a rejected suggestion or a resolution.
 
@@ -31,12 +32,12 @@ AI Suggestions is an explainable, local simulation for the exercise, not a live 
 - Keep AI Match suggestions as recommendations. Maya sees the evidence and can confirm or reject each pair because similar amount and date alone are insufficient evidence.
 - Distinguish missing book entries from legitimate timing differences. An unmatched item is not automatically wrong.
 - Treat the Stripe amount difference as a proposed adjustment that needs explicit human confirmation.
-- Update adjusted balances as actions are taken and enable final review only after every item is explained and the difference is zero. Ask the accountant to review adjustments, exclusions, and timing items before marking the demo ready for review.
+- Update adjusted balances as actions are taken and enable final review after every item is explained. A remaining balance difference is visible on the review page and blocks approval. Require an explicit review confirmation and a zero difference before recording demo approval.
 - Show a session activity log with actor, time and action source, and preserve an undo path.
 
 ## What I would not ship
 
-This prototype has hardcoded transactions, in-memory changes, no bank or ledger integration, no permissions or posting approval, and no durable audit log. AI Match uses local rules and a small hand-authored synonym list; it is not a production matching model. The proposed Stripe fee is illustrative and must not be inferred from a real bank deposit without supporting payout evidence. A real product also needs duplicate detection, many-to-one matching, statement import validation, period locks, review and approval controls, and a next-period queue for timing differences. The final button means ready for review in this demo, not a posted reconciliation.
+This prototype has hardcoded transactions, in-memory changes, no bank or ledger integration, no permissions or posting approval, and no durable audit log. AI Match uses local rules and a small hand-authored synonym list; it is not a production matching model. The proposed Stripe fee is illustrative and must not be inferred from a real bank deposit without supporting payout evidence. A real product also needs duplicate detection, many-to-one matching, statement import validation, period locks, review and approval controls, and a next-period queue for timing differences. The approval flow is a session-only simulation; it does not post a reconciliation or enforce production approval permissions.
 
 ## Implementation
 

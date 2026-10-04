@@ -86,6 +86,21 @@
       .crumb{min-width:0;flex-wrap:wrap}
       .demo{flex:none;max-width:100%}
     }
+    [hidden]{display:none!important}
+    .finish-hint{font-size:12px;color:var(--muted);text-align:right;margin:12px 0 0}
+    .approval-view{max-width:1300px}
+    .approval-back{border:0;background:transparent;color:var(--forest);padding:0 0 20px;font-size:13px;font-weight:600}
+    .approval-steps{display:flex;flex-wrap:wrap;gap:12px 24px;list-style:none;padding:0;margin:0 0 30px;font-size:12px;color:var(--muted)}
+    .approval-steps li{padding-bottom:8px;border-bottom:2px solid transparent}.approval-steps .done{color:var(--forest)}.approval-steps .current{color:var(--ink);font-weight:700;border-color:var(--orange)}
+    .approval-heading h1{font-size:34px;letter-spacing:-1.2px;font-weight:500;margin:0 0 8px}.approval-heading p{font-size:13px;color:var(--muted);margin:0 0 24px}
+    .approval-status{padding:16px 20px;background:#ecf6ef;border:1px solid #cfe6d5;border-radius:10px;color:var(--forest);font-size:13px}.approval-status p{margin:5px 0 0;line-height:1.5;font-size:12px}.approval-status.needs-attention{background:#fff5ea;border-color:#f1d4b5;color:#8a4a20}
+    .approval-balances{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;padding:24px;background:#fff;border:1px solid var(--line);border-radius:13px;margin-top:16px}.approval-balances span,.approval-receipt span{display:block;font-size:11px;color:var(--muted);margin-bottom:8px}.approval-balances strong{display:block;font-size:25px;font-weight:500;letter-spacing:-.7px;font-variant-numeric:tabular-nums}.approval-balances .difference-open{color:#9b582b}
+    .approval-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}.approval-sections{display:grid;gap:16px}.approval-section{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}.approval-section h2{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:19px 21px;margin:0;font-size:15px;border-bottom:1px solid var(--line)}.approval-section h2 span{font-size:11px;font-weight:400;color:var(--muted)}.approval-description,.approval-empty{font-size:12px;color:var(--muted);line-height:1.5;padding:0 21px;margin:16px 0}
+    .approval-list{list-style:none;margin:0;padding:0 21px}.approval-list li{display:flex;justify-content:space-between;align-items:start;gap:16px;padding:16px 0;border-bottom:1px solid #edf0ec}.approval-list li:last-child{border-bottom:0}.approval-list li>div{min-width:0;overflow-wrap:anywhere}.approval-list strong{font-size:13px;font-weight:600}.approval-list p{font-size:11px;line-height:1.5;color:var(--muted);margin:5px 0 0}.approval-list li>span{flex:none;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}.approval-list .approval-note{color:var(--forest)}
+    .approval-decision{padding:23px;border:1px solid #d9e4d7;border-radius:13px;background:#f5f8f2}.approval-decision h2{font-size:23px;letter-spacing:-.6px;margin:10px 0}.approval-decision>p{font-size:12px;color:var(--muted);line-height:1.6}.approval-reviewer{display:flex;align-items:center;margin:22px 0}.approval-reviewer strong{font-size:13px}.approval-reviewer div>span{display:block;font-size:11px;color:var(--muted);margin-top:4px}.approval-decision .review-confirm{padding:0;border:0;background:none;font-size:12px;margin-bottom:18px}.approval-submit{width:100%;white-space:normal;min-height:44px}.approval-demo{font-size:11px!important;color:var(--muted);line-height:1.6}.approval-decision .approval-demo{padding-top:15px;margin-top:20px;border-top:1px solid #d9e4d7}
+    .approval-success{max-width:760px;margin:30px auto;padding:40px;border:1px solid #d4e1d1;border-radius:18px;background:#fff;text-align:center}.approval-check{width:64px;height:64px;display:grid;place-items:center;margin:0 auto 22px;border-radius:50%;background:#8bec5c;color:var(--ink);font-size:30px}.approval-success h1{font-size:34px;letter-spacing:-1px;font-weight:500;margin:10px 0}.approval-success>p{font-size:13px;color:var(--muted)}.approval-record{margin:20px 0}.approval-receipt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border-block:1px solid var(--line);padding:24px 0;margin:24px 0}.approval-receipt strong{font-size:21px;font-weight:500;font-variant-numeric:tabular-nums}.approval-followup{background:#f7f3ec;border:1px solid #eee4d8;border-radius:9px;padding:16px;text-align:left;font-size:13px}.approval-followup p{font-size:12px;line-height:1.5;color:var(--muted);margin-bottom:0}.approval-success-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:26px 0}.approval-success-actions button{min-height:44px;white-space:normal}
+    @media(max-width:1100px){.finish-hint{text-align:left}.approval-layout{grid-template-columns:1fr}.approval-balances strong{font-size:22px}}
+    @media(max-width:760px){.approval-heading h1,.approval-success h1{font-size:28px}.approval-balances{grid-template-columns:1fr;padding:20px;gap:18px}.approval-list li{flex-wrap:wrap;gap:8px}.approval-list li>span{margin-left:auto}.approval-success{padding:24px 20px}.approval-receipt{grid-template-columns:1fr}.approval-steps{gap:8px 16px;margin-bottom:22px}.approval-success-actions button{flex:1 1 180px}}
   </style>
 </head>
 <body>
@@ -102,8 +117,9 @@
     </aside>
     <main class="main">
       <div class="topline"><div class="crumb">Accounting <span>›</span> Reconciliation <span>›</span> <strong>Operating Account</strong></div><div class="demo">Demo Data · September 2026</div></div>
-      <div class="content">
+      <div class="content" id="reconciliationView">
         <div class="heading"><div><div class="eyebrow">Month-End Close · Bank Reconciliation</div><h1>Operating Account</h1><p>Operating Account · First National Bank ·•• 4821 &nbsp;·&nbsp; September 1–30, 2026</p></div><div class="heading-actions"><button class="ghost" id="resetBtn" type="button">Reset Demo</button><button class="primary" id="aiMatchBtn" type="button">✦ AI Suggestions · 5</button><button class="primary" id="finishBtn" type="button" disabled>Review Reconciliation</button></div></div>
+        <p class="finish-hint" id="finishHint" aria-live="polite">Resolve all 14 transactions to enable review.</p>
         <div class="summary">
           <div class="stat focus"><div class="stat-label">Review Progress</div><div class="stat-num" id="progressNum">0 of 14</div><div class="stat-sub" id="progressSub">14 transactions need attention</div><div class="progress-track"><div class="progress-fill" id="progressFill"></div></div></div>
           <div class="stat"><div class="stat-label" id="suggestedSummaryLabel">AI Suggested</div><div class="stat-num" id="suggestedCount">10</div><div class="stat-sub" id="pairSub">5 pairs to review · 10 transactions</div></div>
@@ -120,6 +136,7 @@
         <section class="activity-panel" aria-label="Review Activity"><div class="activity-head"><div><h2>Review Activity</h2><p>Who changed what, and when · demo session only</p></div><span class="small-muted" id="activityCount">0 actions</span></div><div id="activityList" class="activity-list"><div class="empty-activity">Actions will appear here as you review items.</div></div></section>
         <p class="footnote">Illustrative data for a design exercise. Actions update this demo only; no bank or accounting system is connected.</p>
       </div>
+      <div class="content approval-view" id="reviewPage" hidden></div>
     </main>
   </div>
   <div id="toastMount" aria-live="polite"></div><div id="modalMount"></div>
