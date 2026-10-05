@@ -14,8 +14,8 @@ function model() {
   const context = vm.createContext({ document });
   const source = fs.readFileSync(path.join(__dirname, '../dist/app.js'), 'utf8');
   vm.runInContext(source.slice(0, source.indexOf("window.addEventListener('hashchange'")) + `
-    render = () => {}; toast = () => {}; closeModal = () => {};
-    globalThis.model = { state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, showAISuggestionDetail, element: $ };
+    render = () => {}; toast = () => {}; closeModal = () => {}; bindDatePicker = () => {};
+    globalThis.model = { parseCalendarDate, calendarDateValue, state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, showAISuggestionDetail, element: $ };
   `, context);
   return context.model;
 }
@@ -178,4 +178,15 @@ test('Stripe inspection keeps fee verification mandatory and canceling returns w
   assert.equal(m.state.resolved.b2, undefined);
   assert.equal(m.computeSuggestions().length, 4);
   assert.equal(m.state.rejectedPairs.has('b2:l2'), true);
+});
+
+
+test('calendar dates reject nonexistent dates and retain leap days without timezone conversion', () => {
+  const m = model();
+  for (const invalid of ['2026-02-29', '2026-04-31', '2026-13-01', '2026-00-15', '2026-10-00', '10/15/2026', '']) {
+    assert.equal(m.parseCalendarDate(invalid), null);
+  }
+  for (const valid of ['2028-02-29', '2026-10-01', '2026-12-31', '2027-01-01']) {
+    assert.equal(m.calendarDateValue(m.parseCalendarDate(valid)), valid);
+  }
 });

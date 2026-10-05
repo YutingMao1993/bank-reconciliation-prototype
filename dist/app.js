@@ -310,7 +310,7 @@ function renderDetail() {
   if ($('undoDetail')) $('undoDetail').onclick = undoLast;
 }
 
-function closeModal() { closeCategoryPicker(); $('modalMount').innerHTML = ''; }
+function closeModal() { closeDatePicker(); closeCategoryPicker(); $('modalMount').innerHTML = ''; }
 
 function showManualMatch(item, onCancel = closeModal, onComplete = closeModal) {
   const opposite = item.side === 'bank' ? 'ledger' : 'bank';
@@ -419,6 +419,113 @@ function bindCategoryPicker(id, onChange = () => {}) {
   });
 }
 
+// Keep date-only values in local time, avoiding timezone shifts and overflow dates.
+function parseCalendarDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+}
+function calendarDateValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function datePickerField(id, label, value = '') {
+  return `<div class="task-field"><label for="${id}">${label}</label><div class="date-picker" id="${id}Picker"><div class="date-control"><input id="${id}" type="text" placeholder="YYYY-MM-DD" maxlength="10" required value="${escapeHTML(value)}" aria-describedby="${id}Hint" autocomplete="off" /><button type="button" class="date-trigger" id="${id}Trigger" aria-label="Choose ${label.toLowerCase()}" aria-haspopup="dialog" aria-expanded="false" aria-controls="${id}Calendar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18"/></svg></button></div><span class="date-format" id="${id}Hint">YYYY-MM-DD</span><div class="date-calendar" id="${id}Calendar" role="dialog" aria-label="${label} calendar" hidden></div></div></div>`;
+}
+let closeDatePicker = () => {};
+function bindDatePicker(id) {
+  const input = $(id), trigger = $(id + 'Trigger'), panel = $(id + 'Calendar'), picker = $(id + 'Picker');
+  const minimum = parseCalendarDate('2026-10-01');
+  const today = new Date();
+  let focused = parseCalendarDate(input.value) || (today < minimum ? minimum : today);
+  let month = new Date(focused.getFullYear(), focused.getMonth(), 1, 12);
+  const validate = () => input.setCustomValidity(!input.value || (parseCalendarDate(input.value) && input.value >= '2026-10-01') ? '' : 'Enter a valid date on or after October 1, 2026 (YYYY-MM-DD).');
+  const position = () => {
+    const rect = input.getBoundingClientRect();
+    const width = Math.min(304, window.innerWidth - 32);
+    panel.style.width = `${width}px`;
+    panel.style.left = `${Math.max(16, Math.min(rect.right - width, window.innerWidth - width - 16))}px`;
+    const height = panel.offsetHeight;
+    const below = window.innerHeight - rect.bottom - 16;
+    const top = below >= height || below >= rect.top - 16 ? rect.bottom + 8 : rect.top - height - 8;
+    panel.style.top = `${Math.max(16, Math.min(top, window.innerHeight - height - 16))}px`;
+  };
+  const outside = event => { if (!picker.contains(event.target)) close(); };
+  const close = (restore = false) => {
+    panel.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', outside);
+    window.removeEventListener('resize', position);
+    document.removeEventListener('scroll', position, true);
+    if (restore) trigger.focus();
+  };
+  const select = value => {
+    input.value = value;
+    validate();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    close(true);
+  };
+  const renderCalendar = (focusDay = false) => {
+    const title = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const first = new Date(month.getFullYear(), month.getMonth(), 1, 12);
+    first.setDate(first.getDate() - first.getDay());
+    const cells = Array.from({ length: 42 }, (_, offset) => {
+      const date = new Date(first); date.setDate(first.getDate() + offset);
+      const value = calendarDateValue(date), selected = value === input.value;
+      return `<button type="button" class="date-day${date.getMonth() !== month.getMonth() ? ' other-month' : ''}${selected ? ' selected' : ''}" data-date="${value}" tabindex="${value === calendarDateValue(focused) ? '0' : '-1'}" aria-label="${date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}" aria-pressed="${selected}" ${value === calendarDateValue(today) ? 'aria-current="date"' : ''} ${date < minimum ? 'disabled' : ''}>${date.getDate()}</button>`;
+    });
+    panel.innerHTML = `<div class="date-calendar-head"><strong aria-live="polite">${title}</strong><div class="date-navigation"><button type="button" data-month="-1" aria-label="Previous month" ${month <= minimum ? 'disabled' : ''}>‹</button><button type="button" data-month="1" aria-label="Next month">›</button></div></div><div class="date-weekdays" aria-hidden="true">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(day => `<span>${day}</span>`).join('')}</div><div class="date-days" role="group" aria-label="${title}">${cells.join('')}</div><div class="date-calendar-footer"><button type="button" data-action="clear">Clear</button><button type="button" data-action="today" ${today < minimum ? 'disabled' : ''}>Today</button></div>`;
+    panel.querySelectorAll('[data-date]').forEach(button => {
+      button.onclick = () => select(button.dataset.date);
+      button.onkeydown = event => {
+        const date = parseCalendarDate(button.dataset.date);
+        const offsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7, Home: -date.getDay(), End: 6 - date.getDay() };
+        if (event.key in offsets) date.setDate(date.getDate() + offsets[event.key]);
+        else if (event.key === 'PageUp' || event.key === 'PageDown') {
+          const day = date.getDate();
+          date.setDate(1); date.setMonth(date.getMonth() + (event.key === 'PageUp' ? -1 : 1));
+          date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
+        } else return;
+        event.preventDefault();
+        focused = date < minimum ? new Date(minimum) : date;
+        month = new Date(focused.getFullYear(), focused.getMonth(), 1, 12);
+        renderCalendar(true);
+      };
+    });
+    panel.querySelectorAll('[data-month]').forEach(button => button.onclick = () => {
+      const direction = Number(button.dataset.month);
+      month.setMonth(month.getMonth() + direction); focused = new Date(month);
+      renderCalendar();
+      (panel.querySelector(`[data-month="${direction}"]:not(:disabled)`) || panel.querySelector('[data-month="1"]')).focus();
+    });
+    panel.querySelector('[data-action="clear"]').onclick = () => select('');
+    panel.querySelector('[data-action="today"]').onclick = () => select(calendarDateValue(today));
+    position();
+    if (focusDay) panel.querySelector('[tabindex="0"]')?.focus();
+  };
+  const open = () => {
+    closeDatePicker(); closeCategoryPicker();
+    closeDatePicker = close;
+    focused = parseCalendarDate(input.value) || (today < minimum ? new Date(minimum) : new Date(today));
+    if (focused < minimum) focused = new Date(minimum);
+    month = new Date(focused.getFullYear(), focused.getMonth(), 1, 12);
+    panel.hidden = false; trigger.setAttribute('aria-expanded', 'true');
+    renderCalendar(true);
+    document.addEventListener('pointerdown', outside);
+    window.addEventListener('resize', position);
+    document.addEventListener('scroll', position, true);
+  };
+  trigger.onclick = () => panel.hidden ? open() : close(true);
+  input.addEventListener('input', validate);
+  input.onkeydown = event => { if (event.key === 'ArrowDown') { event.preventDefault(); open(); } };
+  picker.onkeydown = event => {
+    if (event.key === 'Escape' && !panel.hidden) { event.preventDefault(); event.stopPropagation(); close(true); }
+  };
+  picker.onfocusout = () => requestAnimationFrame(() => { if (!picker.contains(document.activeElement)) close(); });
+  validate();
+}
+
 function journalLines(amount, category) {
   const cash = 'Operating Account · 4821';
   return [
@@ -452,7 +559,8 @@ function saveFollowUp(item, details) {
 
 function showFollowUp(item, onReturn = closeModal) {
   const current = state.followUps[item.id] || {};
-  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="followUpForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Follow Up on Evidence</h2><p class="task-subtitle">${escapeHTML(item.name)} · ${money(item.amount)}</p><p class="task-explanation">Record what is missing and who will follow up. This item stays in Open and continues to block final review.</p><label class="task-field" for="followUpNote">Evidence or Next Step<textarea id="followUpNote" maxlength="300" required placeholder="e.g. Obtain the payout report and verify the processing fee">${escapeHTML(current.note || '')}</textarea></label><div class="field-pair"><label class="task-field" for="followUpOwner">Owner<input id="followUpOwner" maxlength="80" required value="${escapeHTML(current.owner || 'Maya Chen')}" /></label><label class="task-field" for="followUpDate">Follow-up Date<input id="followUpDate" type="date" min="2026-10-01" required value="${escapeHTML(current.dueDate || '')}" /></label></div><p class="task-hint">Saved in this demo session only. No notification is sent.</p><div class="task-actions"><button class="primary" type="submit">Save Follow-up</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></form></div>`;
+  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="followUpForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Follow Up on Evidence</h2><p class="task-subtitle">${escapeHTML(item.name)} · ${money(item.amount)}</p><p class="task-explanation">Record what is missing and who will follow up. This item stays in Open and continues to block final review.</p><label class="task-field" for="followUpNote">Evidence or Next Step<textarea id="followUpNote" maxlength="300" required placeholder="e.g. Obtain the payout report and verify the processing fee">${escapeHTML(current.note || '')}</textarea></label><div class="field-pair"><label class="task-field" for="followUpOwner">Owner<input id="followUpOwner" maxlength="80" required value="${escapeHTML(current.owner || 'Maya Chen')}" /></label>${datePickerField('followUpDate', 'Follow-up Date', current.dueDate || '')}</div><p class="task-hint">Saved in this demo session only. No notification is sent.</p><div class="task-actions"><button class="primary" type="submit">Save Follow-up</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></form></div>`;
+  bindDatePicker('followUpDate');
   $('followUpForm').onsubmit = event => {
     event.preventDefault();
     const note = $('followUpNote').value.trim();
@@ -507,7 +615,8 @@ function showCreateEntry(item) {
 function showOutstanding(item) {
   const deposit = item.amount > 0;
   const title = deposit ? 'Mark Deposit in Transit' : 'Mark as Outstanding';
-  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="timingForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${escapeHTML(item.name)} — ${money(item.amount)}</p><p class="task-explanation">Verify ${deposit ? 'the deposit submission' : 'the payment was issued and remains uncleared'} before carrying this item into October. No new journal entry will be created.</p><label class="task-field" for="timingReference">Supporting Reference<input id="timingReference" maxlength="200" required placeholder="${deposit ? 'Deposit confirmation or receipt reference' : 'Payment confirmation or check register reference'}" /></label><label class="task-field" for="timingDate">Expected Clearing Date<input id="timingDate" type="date" min="2026-10-01" required /></label><label class="task-field" for="outstandingNote">Note (Optional)<textarea id="outstandingNote" maxlength="300" placeholder="Add context for next month's review"></textarea></label><p class="task-hint">Follow-up owner: Maya Chen. This remains a carry-forward item until it clears the bank.</p><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="submit" disabled>${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div><button class="text-action" id="timingFollowUp" type="button">Evidence Missing? Save a Follow-up</button></form></div>`;
+  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="timingForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${escapeHTML(item.name)} — ${money(item.amount)}</p><p class="task-explanation">Verify ${deposit ? 'the deposit submission' : 'the payment was issued and remains uncleared'} before carrying this item into October. No new journal entry will be created.</p><label class="task-field" for="timingReference">Supporting Reference<input id="timingReference" maxlength="200" required placeholder="${deposit ? 'Deposit confirmation or receipt reference' : 'Payment confirmation or check register reference'}" /></label>${datePickerField('timingDate', 'Expected Clearing Date')}<label class="task-field" for="outstandingNote">Note (Optional)<textarea id="outstandingNote" maxlength="300" placeholder="Add context for next month's review"></textarea></label><p class="task-hint">Follow-up owner: Maya Chen. This remains a carry-forward item until it clears the bank.</p><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="submit" disabled>${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div><button class="text-action" id="timingFollowUp" type="button">Evidence Missing? Save a Follow-up</button></form></div>`;
+  bindDatePicker('timingDate');
   const update = () => $('confirmOutstandingBtn').disabled = !$('timingReference').value.trim() || !$('timingDate').value || !$('timingDate').validity.valid;
   $('timingReference').oninput = update;
   $('timingDate').oninput = update;
