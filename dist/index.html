@@ -113,12 +113,31 @@
     .journal-preview th:first-child{text-align:left;width:44%;font-weight:500}
     .journal-preview thead th{color:#64746a;font-size:11px}
     .task-field input{width:100%;min-width:0;border:1px solid #d5d9d4;border-radius:9px;background:#f7f7f5;color:var(--ink);padding:12px;font:inherit;font-weight:400;min-height:46px}
-    .field-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .date-picker{min-width:0;font-weight:400}.date-control{position:relative}.task-field .date-control input{display:block;padding-right:44px;min-width:0;font-variant-numeric:tabular-nums}.date-trigger{position:absolute;right:4px;top:4px;bottom:4px;width:38px;display:grid;place-items:center;border:0;border-radius:7px;background:transparent;color:var(--forest)}.date-trigger:hover,.date-trigger[aria-expanded="true"]{background:var(--green)}.date-calendar{position:fixed;z-index:40;padding:16px;background:#fff;border:1px solid #d5d9d4;border-radius:13px;box-shadow:0 12px 36px rgba(20,45,37,.16);color:var(--ink);font-size:13px;max-height:calc(100vh - 32px);overflow:auto}.date-calendar[hidden]{display:none}.date-calendar-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.date-calendar-head strong{font-size:14px;font-weight:600;letter-spacing:-.2px}.date-navigation{display:flex;gap:4px}.date-navigation button{width:30px;height:30px;border:1px solid #dce5db;border-radius:7px;background:#fff;color:var(--forest);font-size:22px;line-height:1}.date-weekdays,.date-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.date-weekdays{margin-bottom:7px;text-align:center;color:var(--muted);font-size:10px;font-weight:500}.date-day{height:34px;border:1px solid transparent;border-radius:7px;background:#fff;color:var(--ink);font-size:12px;font-variant-numeric:tabular-nums}.date-day.other-month{color:#849187}.date-day[aria-current="date"]{border-color:#8faa9a}.date-day.selected{background:#8bec5c;color:var(--ink);font-weight:600;border-color:#8bec5c}.date-day:hover:not(:disabled):not(.selected),.date-navigation button:hover:not(:disabled){background:var(--green)}.date-calendar button:disabled{opacity:.35;cursor:not-allowed}.date-calendar button:focus-visible{outline:2px solid var(--forest);outline-offset:1px}.date-calendar-footer{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;margin-top:12px}.date-calendar-footer button{border:0;background:transparent;color:var(--forest);border-radius:6px;padding:7px 9px;font-size:12px;font-weight:500}.date-calendar-footer button:hover:not(:disabled){background:var(--green)}
+    .field-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}.field-pair>.task-field{min-width:0;align-content:start}
     .record-details{font-size:11px;color:#52644d;line-height:1.5;overflow-wrap:anywhere}
     .record-details:empty{display:none}.record-details p{margin:7px 0}.record-details strong{display:block;font-weight:600}
     .approval-list li>div{min-width:0;flex:1}.approval-list li>span{flex:none}
     .task-actions button{min-width:0;white-space:normal;overflow-wrap:anywhere}
     @media(max-width:480px){.field-pair{grid-template-columns:1fr;gap:0}.task-modal{padding:20px}.task-actions{flex-wrap:wrap}.task-actions .primary{flex-basis:100%}.journal-preview{padding:10px}.journal-preview th:first-child{width:40%}}
+    .ai-inspect{width:min(820px,100%)}
+    .inspect-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+    .inspect-nav .text-action{padding:0;text-decoration:none;font-size:12px;font-weight:600}
+    .ai-inspect .ai-head{align-items:center}.ai-inspect .ai-head>div{min-width:0}
+    .inspect-records{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:24px}
+    .inspect-record{min-width:0;border:1px solid var(--line);border-radius:12px;padding:19px;background:#fafbf9}
+    .inspect-record h3{font-size:17px;font-weight:600;line-height:1.4;margin:16px 0 6px;overflow-wrap:anywhere}
+    .inspect-amount{font-size:25px;letter-spacing:-.7px;font-variant-numeric:tabular-nums}
+    .inspect-record dl{margin:18px 0 0}.inspect-record dl>div{border-top:1px solid var(--line);padding:10px 0;font-size:12px}
+    .inspect-record dt{color:var(--muted);margin-bottom:4px}.inspect-record dd{margin:0;overflow-wrap:anywhere;line-height:1.5}
+    .inspect-evidence{margin-top:18px;padding:16px;border:1px solid #eee4d8;background:#f9f4ee;border-radius:10px}
+    .inspect-evidence h3{margin:0 0 8px;font-size:13px}.inspect-evidence p{font-size:12px;line-height:1.6;margin:6px 0}
+    .ai-inspect .evidence-card{background:#fff;margin-top:14px}
+    .inspect-footer{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
+    .inspect-footer>p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 12px}
+    .inspect-footer .ai-card-actions{justify-content:flex-end}.inspect-footer .task-hint{font-size:11px;margin:12px 0 0}
+    .ai-result-notice{padding:12px 14px;border:1px solid #cfe6d5;border-radius:9px;background:#ecf6ef;color:#0a4733;font-size:12px;line-height:1.5;margin:18px 0 0}
+    @media(max-width:600px){.inspect-records{grid-template-columns:1fr}.ai-inspect .ai-head{align-items:flex-start;flex-wrap:wrap}.inspect-footer .ai-card-actions button{flex:1 1 140px;white-space:normal;min-height:42px}.inspect-footer .ai-card-actions .primary{flex-basis:100%}.ai-inspect{padding:20px}.ai-inspect .ai-head h2{font-size:25px}}
   </style>
 </head>
 <body>

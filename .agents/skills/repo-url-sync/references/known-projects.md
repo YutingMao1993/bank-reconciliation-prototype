@@ -10,6 +10,7 @@ Use these mappings to choose the intended target; verify remote refs, Site owner
 
 | Site URL | Intended source | Existing Site project ID | Last known audience |
 | --- | --- | --- | --- |
+| https://bank-reconciliation-prototype-nine.vercel.app/ | `main`, primary Vercel deployment; never use for branch previews | Not a Sites project | Public |
 | https://bank-reconciliation-exercise.momoqueen.chatgpt.site/ | `main`, original main site | `appgprj_6ac04c78a608819181975eb7d8b91fb1` | Public |
 | https://bank-reconciliation-ux-checklist.momoqueen.chatgpt.site/ | `main`, following the user's request to sync it with the default branch after the UX PR merged | `appgprj_6ac1707b29a481919bd5bbc1faee9e49` | Owner only |
 | https://bank-reconciliation-update-title.momoqueen.chatgpt.site/ | `feature/update-title`, dedicated branch preview | `appgprj_6ac18d44ac008191bb107f7e0da63f66` | Owner only |
@@ -17,6 +18,7 @@ Use these mappings to choose the intended target; verify remote refs, Site owner
 | https://bank-reconciliation-improve-ai-flow.momoqueen.chatgpt.site/ | `feature/improve-ai-flow`, dedicated branch preview | `appgprj_6ac1b22c6d64819190a66b67e02146c5` | Owner only |
 | https://bank-reconciliation-ui-qa.momoqueen.chatgpt.site/ | `feature/ui-qa`, dedicated branch preview | `appgprj_6ac1bfaabf788191a9bcd9083982f441` | Owner only |
 | https://bank-reconciliation-approval.momoqueen.chatgpt.site/ | `feature/reconciliation-approval`, dedicated branch preview | `appgprj_6ac2881031f88191ac0a77b50a91d264` | Owner only |
+| https://bank-reconciliation-inspect-details.momoqueen.chatgpt.site/ | `feature/inspect-details-modal`, dedicated branch preview | `appgprj_6ac363fa5fa081919de77d106e384c33` | Owner only |
 
 The UX checklist URL now follows `main` despite its original feature-branch name. Dedicated feature previews continue to follow their named branches after merge unless the user changes the mapping. Older experiments are outside this active set.
 
@@ -27,6 +29,8 @@ This is a static application. `.openai/hosting.json` declares `static.directory`
 ## Standing publication preference
 
 Include publication when active agent work changes the application on a mapped branch, without requiring a separate sync request. After an authorized merge into `main`, fetch the actual merge commit and update both main-mapped URLs. Creating a PR does not authorize merging it.
+
+Vercel is reserved for `main`. Publish feature branches to their separate preview URLs.
 
 A branch without a mapping needs a user-requested preview before creating another Site. Documentation-only changes that do not affect the deployed artifact do not need a new deployment. Honor local-only or no-publish requests.
 
