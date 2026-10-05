@@ -47,4 +47,25 @@ The visual palette was sampled from [Campfire's public website](https://campfire
 
 ## Guidance for coding agents
 
-Start with [AGENTS.md](AGENTS.md) for project commands, UX constraints, and verification guidance. The repository includes three reusable skills in [.agents/skills](.agents/skills): Bank Reconciliation UX, Repository URL Sync, and Padding Alignment. Their instructions can be read by any coding agent; tool availability and hosting access depend on the environment.
+Start with [AGENTS.md](AGENTS.md) for project commands, UX constraints, and verification guidance. The repository includes four reusable skills in [.agents/skills](.agents/skills): Bank Reconciliation UX, Maya Bank Reconciliation, Repository URL Sync, and Padding Alignment. Their instructions can be read by any coding agent; tool availability and hosting access depend on the environment.
+
+## User interviews and usability testing with Maya
+
+The [Maya skill](.agents/skills/maya-bank-reconciliation/SKILL.md) simulates a staff accountant at a 120-person software company, working through 14 unmatched transactions in Campfire on the third business day of month-end close.
+
+Start a session with a screenshot or prototype:
+
+> Use $maya-bank-reconciliation. You are Maya. I'll ask interview questions and show you screens. Answer in character and think aloud.
+
+If your agent does not discover repository skills, ask it to read `.agents/skills/maya-bank-reconciliation/SKILL.md` and follow those instructions.
+
+Then ask questions such as:
+
+- “What would you do first?”
+- “What does this suggested match mean to you?”
+- “What would you expect after clicking ‘Mark as outstanding’?”
+- “What information is missing?”
+
+Maya stays in character and uses the evidence shown in the test. Ask “Step out of character and debrief this test” for a separate analysis. Avoid giving the participant the demo walkthrough or implementation details before testing discoverability.
+
+These reactions are simulated hypotheses for research, not findings from real participants. The skill does not itself authorize changes to live accounting records.
