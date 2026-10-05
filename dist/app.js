@@ -429,17 +429,28 @@ function parseCalendarDate(value) {
 function calendarDateValue(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
+function displayCalendarDate(value) {
+  if (!parseCalendarDate(value)) return '';
+  const [year, month, day] = value.split('-');
+  return `${month}-${day}-${year}`;
+}
+function dateInputValue(value) {
+  if (!/^\d{2}-\d{2}-\d{4}$/.test(value)) return '';
+  const [month, day, year] = value.split('-');
+  const iso = `${year}-${month}-${day}`;
+  return parseCalendarDate(iso) ? iso : '';
+}
 function datePickerField(id, label, value = '') {
-  return `<div class="task-field"><label for="${id}">${label}</label><div class="date-picker" id="${id}Picker"><div class="date-control"><input id="${id}" type="text" placeholder="YYYY-MM-DD" maxlength="10" required value="${escapeHTML(value)}" autocomplete="off" /><button type="button" class="date-trigger" id="${id}Trigger" aria-label="Choose ${label.toLowerCase()}" aria-haspopup="dialog" aria-expanded="false" aria-controls="${id}Calendar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18"/></svg></button></div><div class="date-calendar" id="${id}Calendar" role="dialog" aria-label="${label} calendar" hidden></div></div></div>`;
+  return `<div class="task-field"><label for="${id}">${label}</label><div class="date-picker" id="${id}Picker"><div class="date-control"><input id="${id}" type="text" placeholder="MM-DD-YYYY" maxlength="10" required value="${escapeHTML(displayCalendarDate(value))}" autocomplete="off" /><button type="button" class="date-trigger" id="${id}Trigger" aria-label="Choose ${label.toLowerCase()}" aria-haspopup="dialog" aria-expanded="false" aria-controls="${id}Calendar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18"/></svg></button></div><div class="date-calendar" id="${id}Calendar" role="dialog" aria-label="${label} calendar" hidden></div></div></div>`;
 }
 let closeDatePicker = () => {};
 function bindDatePicker(id) {
   const input = $(id), trigger = $(id + 'Trigger'), panel = $(id + 'Calendar'), picker = $(id + 'Picker');
   const minimum = parseCalendarDate('2026-10-01');
   const today = new Date();
-  let focused = parseCalendarDate(input.value) || (today < minimum ? minimum : today);
+  let focused = parseCalendarDate(dateInputValue(input.value)) || (today < minimum ? minimum : today);
   let month = new Date(focused.getFullYear(), focused.getMonth(), 1, 12);
-  const validate = () => input.setCustomValidity(!input.value || (parseCalendarDate(input.value) && input.value >= '2026-10-01') ? '' : 'Enter a valid date on or after October 1, 2026 (YYYY-MM-DD).');
+  const validate = () => input.setCustomValidity(!input.value || (parseCalendarDate(dateInputValue(input.value)) && dateInputValue(input.value) >= '2026-10-01') ? '' : 'Enter a valid date on or after October 1, 2026 (MM-DD-YYYY).');
   const position = () => {
     const rect = input.getBoundingClientRect();
     const width = Math.min(304, window.innerWidth - 32);
@@ -460,7 +471,7 @@ function bindDatePicker(id) {
     if (restore) trigger.focus();
   };
   const select = value => {
-    input.value = value;
+    input.value = displayCalendarDate(value);
     validate();
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -472,7 +483,7 @@ function bindDatePicker(id) {
     first.setDate(first.getDate() - first.getDay());
     const cells = Array.from({ length: 42 }, (_, offset) => {
       const date = new Date(first); date.setDate(first.getDate() + offset);
-      const value = calendarDateValue(date), selected = value === input.value;
+      const value = calendarDateValue(date), selected = value === dateInputValue(input.value);
       return `<button type="button" class="date-day${date.getMonth() !== month.getMonth() ? ' other-month' : ''}${selected ? ' selected' : ''}" data-date="${value}" tabindex="${value === calendarDateValue(focused) ? '0' : '-1'}" aria-label="${date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}" aria-pressed="${selected}" ${value === calendarDateValue(today) ? 'aria-current="date"' : ''} ${date < minimum ? 'disabled' : ''}>${date.getDate()}</button>`;
     });
     panel.innerHTML = `<div class="date-calendar-head"><strong aria-live="polite">${title}</strong><div class="date-navigation"><button type="button" data-month="-1" aria-label="Previous month" ${month <= minimum ? 'disabled' : ''}>‹</button><button type="button" data-month="1" aria-label="Next month">›</button></div></div><div class="date-weekdays" aria-hidden="true">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(day => `<span>${day}</span>`).join('')}</div><div class="date-days" role="group" aria-label="${title}">${cells.join('')}</div><div class="date-calendar-footer"><button type="button" data-action="clear">Clear</button><button type="button" data-action="today" ${today < minimum ? 'disabled' : ''}>Today</button></div>`;
@@ -507,7 +518,7 @@ function bindDatePicker(id) {
   const open = () => {
     closeDatePicker(); closeCategoryPicker();
     closeDatePicker = close;
-    focused = parseCalendarDate(input.value) || (today < minimum ? new Date(minimum) : new Date(today));
+    focused = parseCalendarDate(dateInputValue(input.value)) || (today < minimum ? new Date(minimum) : new Date(today));
     if (focused < minimum) focused = new Date(minimum);
     month = new Date(focused.getFullYear(), focused.getMonth(), 1, 12);
     panel.hidden = false; trigger.setAttribute('aria-expanded', 'true');
@@ -539,7 +550,7 @@ function journalPreview(lines, date) {
 }
 
 function recordDetails(record) {
-  return `<div class="record-details">${record.supportingRef ? `<p><strong>Supporting Reference</strong> ${escapeHTML(record.supportingRef)}</p>` : ''}${record.expectedDate ? `<p><strong>Expected Clearing Date</strong> ${escapeHTML(record.expectedDate)}</p>` : ''}${record.owner ? `<p><strong>Follow-up Owner</strong> ${escapeHTML(record.owner)}</p>` : ''}${record.dueDate ? `<p><strong>Follow-up Date</strong> ${escapeHTML(record.dueDate)}</p>` : ''}</div>`;
+  return `<div class="record-details">${record.supportingRef ? `<p><strong>Supporting Reference</strong> ${escapeHTML(record.supportingRef)}</p>` : ''}${record.expectedDate ? `<p><strong>Expected Clearing Date</strong> ${escapeHTML(displayCalendarDate(record.expectedDate))}</p>` : ''}${record.owner ? `<p><strong>Follow-up Owner</strong> ${escapeHTML(record.owner)}</p>` : ''}${record.dueDate ? `<p><strong>Follow-up Date</strong> ${escapeHTML(displayCalendarDate(record.dueDate))}</p>` : ''}</div>`;
 }
 
 function followUpCard(item) {
@@ -566,7 +577,7 @@ function showFollowUp(item, onReturn = closeModal) {
     const note = $('followUpNote').value.trim();
     const owner = $('followUpOwner').value.trim();
     if (!note || !owner || !$('followUpForm').reportValidity()) return;
-    saveFollowUp(item, { note, owner, dueDate: $('followUpDate').value });
+    saveFollowUp(item, { note, owner, dueDate: dateInputValue($('followUpDate').value) });
     onReturn();
   };
   $('cancelTaskModal').onclick = onReturn;
@@ -624,7 +635,7 @@ function showOutstanding(item) {
     event.preventDefault();
     if (!$('timingForm').reportValidity() || !$('timingReference').value.trim()) return;
     const note = $('outstandingNote').value.trim();
-    const details = { supportingRef: $('timingReference').value.trim(), expectedDate: $('timingDate').value, owner: 'Maya Chen' };
+    const details = { supportingRef: $('timingReference').value.trim(), expectedDate: dateInputValue($('timingDate').value), owner: 'Maya Chen' };
     resolve([item.id], 'timing', `${deposit ? 'Carried deposit in transit' : 'Carried outstanding check'} to October 2026`, 'Maya documented timing evidence', note, details);
     closeModal();
   };

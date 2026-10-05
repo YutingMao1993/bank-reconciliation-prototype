@@ -15,7 +15,7 @@ function model() {
   const source = fs.readFileSync(path.join(__dirname, '../dist/app.js'), 'utf8');
   vm.runInContext(source.slice(0, source.indexOf("window.addEventListener('hashchange'")) + `
     render = () => {}; toast = () => {}; closeModal = () => {}; bindDatePicker = () => {};
-    globalThis.model = { parseCalendarDate, calendarDateValue, state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, showAISuggestionDetail, element: $ };
+    globalThis.model = { parseCalendarDate, calendarDateValue, displayCalendarDate, dateInputValue, showFollowUp, state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, showAISuggestionDetail, element: $ };
   `, context);
   return context.model;
 }
@@ -77,7 +77,7 @@ test('carry-forward evidence survives review and contributes only to the adjuste
   assert.equal(m.balanceSnapshot().adjustedLedgerCents, 48763686);
   assert.equal(m.state.resolved.l6.journal, undefined);
   assert.ok(m.reviewList('timing').includes('&lt;receipt &amp; reference&gt;'));
-  assert.ok(m.reviewList('timing').includes('2026-10-02'));
+  assert.ok(m.reviewList('timing').includes('10-02-2026'));
   assert.equal(m.state.activity[0].expectedDate, '2026-10-02');
 });
 
@@ -123,11 +123,11 @@ test('timing confirmation stays disabled until reference and valid clearing date
   m.element('timingReference').value = 'QA-DEPOSIT-144';
   m.element('timingReference').oninput();
   assert.equal(m.element('confirmOutstandingBtn').disabled, true);
-  m.element('timingDate').value = '2026-09-30';
+  m.element('timingDate').value = '09-30-2026';
   m.element('timingDate').validity.valid = false;
   m.element('timingDate').oninput();
   assert.equal(m.element('confirmOutstandingBtn').disabled, true);
-  m.element('timingDate').value = '2026-10-02';
+  m.element('timingDate').value = '10-02-2026';
   m.element('timingDate').validity.valid = true;
   m.element('timingDate').oninput();
   assert.equal(m.element('confirmOutstandingBtn').disabled, false);
@@ -189,4 +189,31 @@ test('calendar dates reject nonexistent dates and retain leap days without timez
   for (const valid of ['2028-02-29', '2026-10-01', '2026-12-31', '2027-01-01']) {
     assert.equal(m.calendarDateValue(m.parseCalendarDate(valid)), valid);
   }
+});
+
+
+test('month-first input converts to canonical dates without swapping month and day', () => {
+  const m = model();
+  for (const [input, stored] of [['10-15-2026', '2026-10-15'], ['11-12-2026', '2026-11-12'], ['02-29-2028', '2028-02-29']]) {
+    assert.equal(m.dateInputValue(input), stored);
+    assert.equal(m.displayCalendarDate(stored), input);
+  }
+  for (const invalid of ['', '2026-10-15', '13-01-2026', '02-29-2026', '04-31-2026']) {
+    assert.equal(m.dateInputValue(invalid), '');
+  }
+  assert.equal(m.displayCalendarDate(''), '');
+});
+
+test('follow-up forms save month-first input as a canonical date and reopen with the same displayed date', () => {
+  const m = model();
+  const item = m.items.find(item => item.id === 'b2');
+  m.showFollowUp(item);
+  m.element('followUpNote').value = 'Obtain payout report';
+  m.element('followUpOwner').value = 'Maya Chen';
+  m.element('followUpDate').value = '10-15-2026';
+  m.element('followUpForm').onsubmit({ preventDefault() {} });
+  assert.equal(m.state.followUps.b2.dueDate, '2026-10-15');
+  assert.equal(m.openItems().length, 14);
+  m.showFollowUp(item);
+  assert.match(m.element('modalMount').innerHTML, /value="10-15-2026"/);
 });
