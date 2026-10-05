@@ -119,6 +119,24 @@
     .approval-list li>div{min-width:0;flex:1}.approval-list li>span{flex:none}
     .task-actions button{min-width:0;white-space:normal;overflow-wrap:anywhere}
     @media(max-width:480px){.field-pair{grid-template-columns:1fr;gap:0}.task-modal{padding:20px}.task-actions{flex-wrap:wrap}.task-actions .primary{flex-basis:100%}.journal-preview{padding:10px}.journal-preview th:first-child{width:40%}}
+    .ai-inspect{width:min(820px,100%)}
+    .inspect-nav{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+    .inspect-nav .text-action{padding:0;text-decoration:none;font-size:12px;font-weight:600}
+    .ai-inspect .ai-head{align-items:center}.ai-inspect .ai-head>div{min-width:0}
+    .inspect-records{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:24px}
+    .inspect-record{min-width:0;border:1px solid var(--line);border-radius:12px;padding:19px;background:#fafbf9}
+    .inspect-record h3{font-size:17px;font-weight:600;line-height:1.4;margin:16px 0 6px;overflow-wrap:anywhere}
+    .inspect-amount{font-size:25px;letter-spacing:-.7px;font-variant-numeric:tabular-nums}
+    .inspect-record dl{margin:18px 0 0}.inspect-record dl>div{border-top:1px solid var(--line);padding:10px 0;font-size:12px}
+    .inspect-record dt{color:var(--muted);margin-bottom:4px}.inspect-record dd{margin:0;overflow-wrap:anywhere;line-height:1.5}
+    .inspect-evidence{margin-top:18px;padding:16px;border:1px solid #eee4d8;background:#f9f4ee;border-radius:10px}
+    .inspect-evidence h3{margin:0 0 8px;font-size:13px}.inspect-evidence p{font-size:12px;line-height:1.6;margin:6px 0}
+    .ai-inspect .evidence-card{background:#fff;margin-top:14px}
+    .inspect-footer{border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
+    .inspect-footer>p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 12px}
+    .inspect-footer .ai-card-actions{justify-content:flex-end}.inspect-footer .task-hint{font-size:11px;margin:12px 0 0}
+    .ai-result-notice{padding:12px 14px;border:1px solid #cfe6d5;border-radius:9px;background:#ecf6ef;color:#0a4733;font-size:12px;line-height:1.5;margin:18px 0 0}
+    @media(max-width:600px){.inspect-records{grid-template-columns:1fr}.ai-inspect .ai-head{align-items:flex-start;flex-wrap:wrap}.inspect-footer .ai-card-actions button{flex:1 1 140px;white-space:normal;min-height:42px}.inspect-footer .ai-card-actions .primary{flex-basis:100%}.ai-inspect{padding:20px}.ai-inspect .ai-head h2{font-size:25px}}
   </style>
 </head>
 <body>

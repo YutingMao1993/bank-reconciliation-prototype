@@ -7,7 +7,7 @@ const path = require('node:path');
 // Exercise accounting and undo state independently of browser rendering.
 function model() {
   const elements = new Map();
-  const document = { getElementById(id) {
+  const document = { querySelectorAll: () => [], querySelector: () => ({ scrollTop: 0, before() {} }), createElement: () => ({ setAttribute() {} }), getElementById(id) {
     if (!elements.has(id)) elements.set(id, { value: '', innerHTML: '', checked: false, focus() {}, reportValidity: () => true, validity: { valid: true } });
     return elements.get(id);
   } };
@@ -15,7 +15,7 @@ function model() {
   const source = fs.readFileSync(path.join(__dirname, '../dist/app.js'), 'utf8');
   vm.runInContext(source.slice(0, source.indexOf("window.addEventListener('hashchange'")) + `
     render = () => {}; toast = () => {}; closeModal = () => {};
-    globalThis.model = { state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, element: $ };
+    globalThis.model = { state, items, journalLines, resolve, saveFollowUp, undoLast, balanceSnapshot, openItems, tabItems, reviewList, rejectSuggestion, computeSuggestions, showAdjustment, showOutstanding, showAISuggestionDetail, element: $ };
   `, context);
   return context.model;
 }
@@ -134,4 +134,48 @@ test('timing confirmation stays disabled until reference and valid clearing date
   m.element('timingForm').onsubmit({ preventDefault() {} });
   assert.equal(m.state.resolved.l6.supportingRef, 'QA-DEPOSIT-144');
   assert.equal(m.state.resolved.l6.expectedDate, '2026-10-02');
+});
+
+test('inspecting and returning from a pair preserves the underlying queue and accounting state', () => {
+  const m = model();
+  m.state.selected = 'b6';
+  m.state.filter = 'bank-only';
+  m.element('search').value = '45';
+  m.showAISuggestionDetail('b1');
+  m.element('aiDetailFollowUp').onclick();
+  m.element('cancelTaskModal').onclick();
+  m.element('aiDetailBack').onclick();
+  assert.equal(m.state.selected, 'b6');
+  assert.equal(m.state.filter, 'bank-only');
+  assert.equal(m.element('search').value, '45');
+  assert.equal(m.openItems().length, 14);
+  assert.equal(m.state.activity.length, 0);
+});
+
+test('confirming from inspected details resolves only that pair and keeps the modal available', () => {
+  const m = model();
+  m.showAISuggestionDetail('b1');
+  m.element('aiDetailConfirm').onclick();
+  assert.equal(m.openItems().length, 12);
+  assert.equal(m.state.resolved.b1.action, 'match');
+  assert.equal(m.state.resolved.l1.action, 'match');
+  assert.equal(m.computeSuggestions().length, 4);
+  assert.equal(m.state.activity.length, 1);
+  assert.ok(m.element('modalMount').innerHTML);
+  m.undoLast();
+  assert.equal(m.openItems().length, 14);
+});
+
+test('Stripe inspection keeps fee verification mandatory and canceling returns without changes', () => {
+  const m = model();
+  m.showAISuggestionDetail('b2');
+  m.element('aiDetailConfirm').onclick();
+  m.element('adjustmentForm').onsubmit({ preventDefault() {} });
+  assert.equal(m.openItems().length, 14);
+  m.element('cancelTaskModal').onclick();
+  m.element('aiDetailReject').onclick();
+  assert.equal(m.openItems().length, 14);
+  assert.equal(m.state.resolved.b2, undefined);
+  assert.equal(m.computeSuggestions().length, 4);
+  assert.equal(m.state.rejectedPairs.has('b2:l2'), true);
 });
