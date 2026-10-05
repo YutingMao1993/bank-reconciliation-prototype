@@ -34,9 +34,12 @@ node --check dist/app.js
 
 # Check the patch before committing.
 git diff --check
+
+# Accounting and follow-up state regression checks.
+node --test tests/reconciliation.test.cjs
 ```
 
-There is no configured automated test suite. For UI changes, use available browser tooling to check the affected flow and inspect screenshots. For spacing changes, reproduce the reported width and check adjacent responsive breakpoints; the prior failures were at 768px and 320px. Check font-loaded geometry, visible labels, focus rings, and overflow. Do not add implementation-mirroring tests for simple style edits. Documentation-only changes need link/content checks, not a new browser test run.
+The Node regression checks cover accounting and follow-up state, not browser behavior. For UI changes, use available browser tooling to check the affected flow and inspect screenshots. For spacing changes, reproduce the reported width and check adjacent responsive breakpoints; the prior failures were at 768px and 320px. Check font-loaded geometry, visible labels, focus rings, and overflow. Do not add implementation-mirroring tests for simple style edits. Documentation-only changes need link/content checks, not a new browser test run.
 
 ## Product invariants
 
@@ -44,6 +47,7 @@ There is no configured automated test suite. For UI changes, use available brows
 - Initial state: 14 open transactions, 10 suggested transactions representing 5 pairs, 2 bank-only items, and 2 ledger-only items. Counts of pairs and transactions must remain distinct.
 - **Open** and **Resolved** are statuses. **All**, **AI Suggested**, **Bank Only**, and **Ledger Only** filter the open queue. All includes every unresolved item.
 - Suggestions require user confirmation. Rejection leaves items open and supports manual matching or appropriate exception resolution. Preserve Undo and the activity record.
+- Evidence follow-ups stay in Open and do not change balances. Resolution clears the flag; Undo restores it. Fee adjustments require a supporting reference and verification. Timing resolutions retain the supporting reference, expected clearing date, and follow-up owner. Entry previews must reflect the actual debit and credit.
 - AI is simulated using local rules. Preserve the demo disclosure; do not imply a real model call, bank connection, or ledger posting.
 - Review Reconciliation enables when all 14 items are explained and opens a dedicated review page. Approval requires a zero adjusted balance difference and an explicit review checkbox. Preserve the confirmation page, approval activity entry, and Undo Approval. Carry-forward items remain timing exceptions, not cleared transactions.
 
