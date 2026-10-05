@@ -13,10 +13,13 @@ Read the relevant skill before work in its area. These are reusable instructions
 | Skill | When to use | Instructions |
 | --- | --- | --- |
 | Bank Reconciliation UX | Reviewing or changing matching, exceptions, evidence, progress, or completion | [.agents/skills/bank-reconciliation-ux/SKILL.md](.agents/skills/bank-reconciliation-ux/SKILL.md) |
+| Maya Bank Reconciliation | Simulated user interviews and think-aloud usability testing as the staff accountant | [.agents/skills/maya-bank-reconciliation/SKILL.md](.agents/skills/maya-bank-reconciliation/SKILL.md) |
 | Padding Alignment | Fixing unequal headers, dropdown spacing, clipping, or responsive layout | [.agents/skills/padding-alignment/SKILL.md](.agents/skills/padding-alignment/SKILL.md) |
 | Repository URL Sync | Publishing mapped branches, syncing merged code, or investigating stale previews | [.agents/skills/repo-url-sync/SKILL.md](.agents/skills/repo-url-sync/SKILL.md) |
 
 Follow the user's current task when it differs from historical guidance. Use only the relevant supporting references. These files can be read directly even when an agent does not support automatic skill discovery.
+
+For Maya participant sessions, use supplied screens and visible interactions. Keep implementation details and the README's demo walkthrough out of Maya's simulated knowledge; they are not evidence that a participant would discover the intended flow.
 
 ## Commands and checks
 
