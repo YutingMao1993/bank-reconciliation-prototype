@@ -312,7 +312,7 @@ function renderDetail() {
 
 function closeModal() { closeCategoryPicker(); $('modalMount').innerHTML = ''; }
 
-function showManualMatch(item) {
+function showManualMatch(item, onCancel = closeModal, onComplete = closeModal) {
   const opposite = item.side === 'bank' ? 'ledger' : 'bank';
   const candidates = openItems().filter(candidate => candidate.side === opposite && candidate.id !== item.id)
     .sort((a, b) => Math.abs(a.amount - item.amount) - Math.abs(b.amount - item.amount) || Math.abs(dateNumber(a) - dateNumber(item)) - Math.abs(dateNumber(b) - dateNumber(item)));
@@ -353,9 +353,9 @@ function showManualMatch(item) {
     resolve([item.id, selected.id], 'match', `Matched ${item.name} with ${selected.name}`, 'Manual match · Maya confirmed');
     state.rejectedPairs.delete(pairKey(bankId, ledgerId));
     render();
-    closeModal();
+    onComplete();
   };
-  $('cancelTaskModal').onclick = closeModal;
+  $('cancelTaskModal').onclick = onCancel;
   renderOptions();
   $('matchSearch').focus();
 }
@@ -450,7 +450,7 @@ function saveFollowUp(item, details) {
   toast('Follow-up saved. Transaction remains open.', true);
 }
 
-function showFollowUp(item) {
+function showFollowUp(item, onReturn = closeModal) {
   const current = state.followUps[item.id] || {};
   $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="followUpForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Follow Up on Evidence</h2><p class="task-subtitle">${escapeHTML(item.name)} · ${money(item.amount)}</p><p class="task-explanation">Record what is missing and who will follow up. This item stays in Open and continues to block final review.</p><label class="task-field" for="followUpNote">Evidence or Next Step<textarea id="followUpNote" maxlength="300" required placeholder="e.g. Obtain the payout report and verify the processing fee">${escapeHTML(current.note || '')}</textarea></label><div class="field-pair"><label class="task-field" for="followUpOwner">Owner<input id="followUpOwner" maxlength="80" required value="${escapeHTML(current.owner || 'Maya Chen')}" /></label><label class="task-field" for="followUpDate">Follow-up Date<input id="followUpDate" type="date" min="2026-10-01" required value="${escapeHTML(current.dueDate || '')}" /></label></div><p class="task-hint">Saved in this demo session only. No notification is sent.</p><div class="task-actions"><button class="primary" type="submit">Save Follow-up</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></form></div>`;
   $('followUpForm').onsubmit = event => {
@@ -459,12 +459,13 @@ function showFollowUp(item) {
     const owner = $('followUpOwner').value.trim();
     if (!note || !owner || !$('followUpForm').reportValidity()) return;
     saveFollowUp(item, { note, owner, dueDate: $('followUpDate').value });
+    onReturn();
   };
-  $('cancelTaskModal').onclick = closeModal;
+  $('cancelTaskModal').onclick = onReturn;
   $('followUpNote').focus();
 }
 
-function showAdjustment(suggestion) {
+function showAdjustment(suggestion, onCancel = closeModal, onComplete = closeModal) {
   const { bank, ledger, difference } = suggestion;
   const lines = journalLines(-difference, 'Payment processing fees');
   $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="adjustmentForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Verify &amp; Record Fee</h2><p class="task-subtitle">${escapeHTML(bank.name)} · ${money(difference)} proposed fee</p><p class="task-explanation">No payout report is attached. Obtain the report from your payment processor and verify the payout identity, gross receipts, fee, and net deposit.</p><div class="adjustment-box"><div class="balance-preview"><span>Gross Receipts</span><span>${money(ledger.amount)}</span></div><div class="balance-preview"><span>Processing Fee</span><span>${money(-difference)}</span></div><div class="balance-preview"><span>Net Deposit</span><span>${money(bank.amount)}</span></div></div><label class="task-field" for="payoutReference">Supporting Report Reference<input id="payoutReference" required maxlength="200" placeholder="Report ID, document reference, or URL" /></label>${journalPreview(lines, `${bank.date}, 2026`)}<p class="task-hint">Reduces ledger cash by ${money(difference)} and matches both transactions.</p><label class="review-confirm"><input id="payoutVerified" type="checkbox" required /> I verified the payout identity and all three amounts against the supporting report.</label><div class="task-actions"><button class="primary" id="confirmAdjustment" type="submit" disabled>Match + Record ${money(difference)} Fee</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div><button class="text-action" id="adjustmentFollowUp" type="button">Report Missing? Save a Follow-up</button><p class="task-hint">Demo entry only. A reference records your verification; this demo does not retrieve or validate documents.</p></form></div>`;
@@ -476,10 +477,10 @@ function showAdjustment(suggestion) {
     const supportingRef = $('payoutReference').value.trim();
     if (!supportingRef || !$('payoutVerified').checked || !$('adjustmentForm').reportValidity()) return;
     resolve([bank.id, ledger.id], 'adjustment', `Matched Stripe payout and recorded ${money(difference)} processing fee`, 'Maya verified payout report', '', { supportingRef, journal: lines, entryDate: `${bank.date}, 2026` });
-    closeModal();
+    onComplete();
   };
-  $('adjustmentFollowUp').onclick = () => showFollowUp(bank);
-  $('cancelTaskModal').onclick = closeModal;
+  $('adjustmentFollowUp').onclick = () => showFollowUp(bank, onCancel);
+  $('cancelTaskModal').onclick = onCancel;
   $('payoutReference').focus();
 }
 
@@ -536,21 +537,60 @@ function showExclude(item) {
   $('excludeNote').focus();
 }
 
-function showAIMatches() {
+function showAISuggestionDetail(bankId, listScroll = 0) {
+  const suggestions = visibleSuggestions();
+  const suggestion = suggestions.find(pair => pair.bank.id === bankId);
+  if (!suggestion) { showAIMatches(); return; }
+  const { bank, ledger } = suggestion;
+  const back = () => showAIMatches({ focusPair: bankId, scrollTop: listScroll });
+  const returnToDetail = () => showAISuggestionDetail(bankId, listScroll);
+  const completed = message => showAIMatches({ scrollTop: listScroll, message });
+  const record = (item, title) => `<section class="inspect-record" aria-label="${title}"><span class="source-chip ${item.side}">${title}</span><h3>${escapeHTML(item.name)}</h3><div class="inspect-amount">${money(item.amount)}</div><dl><div><dt>Date</dt><dd>${item.date}, 2026</dd></div><div><dt>Reference</dt><dd>${escapeHTML(item.ref)}</dd></div><div><dt>Account</dt><dd>Operating ·•• 4821</dd></div></dl></section>`;
+  const followUp = state.followUps[bank.id] || state.followUps[ledger.id];
+  $('modalMount').innerHTML = `<div class="final-overlay"><div class="ai-panel ai-inspect" role="dialog" aria-modal="true" aria-labelledby="aiDetailTitle">
+    <div class="inspect-nav"><button class="text-action" id="aiDetailBack" type="button">← All Suggested Pairs</button><button class="ai-close" id="aiDetailClose" type="button" aria-label="Close AI Suggestions">×</button></div>
+    <div class="ai-head"><div><div class="ai-kicker">Suggested Pair ${suggestions.indexOf(suggestion) + 1} of ${suggestions.length}</div><h2 id="aiDetailTitle" tabindex="-1">Inspect Match</h2><p>Compare the original records before deciding.</p></div><span class="signal ${suggestion.adjustment ? 'adjust' : suggestion.score < 90 ? 'review' : ''}">${suggestion.strength}</span></div>
+    <div class="inspect-records">${record(bank, 'Bank Statement')}${record(ledger, 'General Ledger')}</div>
+    <section class="inspect-evidence"><h3>Why This Pair Was Suggested</h3><p>${evidence(suggestion)}</p><p class="info">${suggestion.adjustment ? 'The difference is a possible processing fee. Verify the payout report before recording an adjustment.' : 'These signals support a possible match; they do not verify the transaction identity. Check the payment records if you need more evidence.'}</p></section>
+    <section class="evidence-card"><h3>${followUp ? 'Follow-up Needed' : 'Supporting Evidence'}</h3>${followUp ? `<p>${escapeHTML(followUp.note)}</p>${recordDetails(followUp)}` : '<p>No supporting document is attached to this demo. You can keep the pair open and save a follow-up for missing evidence.</p>'}<button class="ghost" id="aiDetailFollowUp" type="button">${followUp ? 'Edit Follow-up' : 'Add Follow-up'}</button></section>
+    <div class="inspect-footer"><p>${suggestion.adjustment ? 'Review the journal entry and supporting reference in the next step.' : 'Confirming matches both records and resolves 2 open transactions.'}</p><div class="ai-card-actions"><button class="ghost" id="aiDetailFind" type="button">Find Another Match</button><button class="ghost" id="aiDetailReject" type="button">Not a Match</button><button class="primary" id="aiDetailConfirm" type="button">${suggestion.adjustment ? 'Review &amp; Record Fee' : 'Confirm Match'}</button></div><p class="task-hint">Demo only. No real ledger is changed.</p></div>
+  </div></div>`;
+  $('aiDetailBack').onclick = back;
+  $('aiDetailClose').onclick = () => { closeModal(); $('aiMatchBtn').focus(); };
+  $('aiDetailFollowUp').onclick = () => showFollowUp(state.followUps[ledger.id] && !state.followUps[bank.id] ? ledger : bank, returnToDetail);
+  $('aiDetailFind').onclick = () => showManualMatch(bank, returnToDetail, () => completed('Manual match recorded. The remaining suggestions are below.'));
+  $('aiDetailReject').onclick = () => {
+    rejectSuggestion(suggestion, bank.id);
+    completed('Suggestion rejected. Both transactions remain open for another match or resolution.');
+  };
+  $('aiDetailConfirm').onclick = () => {
+    if (suggestion.adjustment) {
+      showAdjustment(suggestion, returnToDetail, () => completed('Payout matched and fee recorded. The remaining suggestions are below.'));
+      return;
+    }
+    resolve([bank.id, ledger.id], 'match', `Matched ${bank.name} with ${ledger.name}`, 'AI suggested · Maya inspected and confirmed');
+    completed('Match confirmed. Two transactions resolved.');
+  };
+  $('aiDetailTitle').focus({ preventScroll: true });
+}
+
+function showAIMatches({ focusPair = null, scrollTop = 0, message = '' } = {}) {
   const suggestions = visibleSuggestions();
   $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="ai-panel" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
     <div class="ai-head"><div><div class="ai-kicker">✦ AI Suggestions · Demo</div><h2 id="aiTitle">${suggestions.length} Possible ${suggestions.length === 1 ? 'Match' : 'Matches'}</h2><p>Amount, date and description signals narrow the review. A net deposit may need an adjustment.</p></div><button class="ai-close" id="aiClose" type="button" aria-label="Close AI Suggestions">×</button></div>
     <div class="ai-list">${suggestions.length ? suggestions.map((s, index) => `<div class="ai-card"><div class="ai-card-head"><strong>Suggested Pair ${index + 1}</strong><span class="signal ${s.adjustment ? 'adjust' : s.score < 90 ? 'review' : ''}">${s.strength}</span></div><div class="ai-pair"><div class="ai-entry"><small>BANK · ${s.bank.date}</small><b>${s.bank.name}</b><span>${money(s.bank.amount)}</span></div><span class="ai-arrow">↔</span><div class="ai-entry"><small>LEDGER · ${s.ledger.date}</small><b>${s.ledger.name}</b><span>${money(s.ledger.amount)}</span></div></div><div class="ai-evidence">${evidence(s)}</div><div class="ai-card-actions"><button class="ghost" type="button" data-review="${s.bank.id}">${s.adjustment ? 'Review Adjustment' : 'Inspect Details'}</button><button class="ghost" type="button" data-reject="${s.bank.id}">Not a Match</button>${s.adjustment ? '' : `<button class="primary" type="button" data-confirm="${s.bank.id}">Confirm Match</button>`}</div></div>`).join('') : '<div class="empty-list">No candidate pairs remain. Review the bank-only and ledger-only items individually.</div>'}</div>
     <div class="ai-disclaimer">Demo matching logic runs in this browser. Signal labels are review priorities, not calibrated probabilities. Nothing is posted automatically.</div>
   </div></div>`;
-  $('aiClose').onclick = closeModal;
+  if (message) {
+    const notice = document.createElement('p');
+    notice.className = 'ai-result-notice';
+    notice.setAttribute('role', 'status');
+    notice.textContent = message;
+    document.querySelector('.ai-list').before(notice);
+  }
+  $('aiClose').onclick = () => { closeModal(); $('aiMatchBtn').focus(); };
   document.querySelectorAll('[data-review]').forEach(button => button.onclick = () => {
-    state.selected = button.dataset.review;
-    state.tab = 'open';
-    state.filter = 'suggested';
-    $('search').value = '';
-    closeModal();
-    render();
+    showAISuggestionDetail(button.dataset.review, document.querySelector('.ai-panel').scrollTop);
   });
   document.querySelectorAll('[data-reject]').forEach(button => button.onclick = () => {
     const suggestion = visibleSuggestions().find(s => s.bank.id === button.dataset.reject);
@@ -562,6 +602,9 @@ function showAIMatches() {
     resolve([suggestion.bank.id, suggestion.ledger.id], 'match', `Matched ${suggestion.bank.name} with ${suggestion.ledger.name}`, 'AI suggested · Maya confirmed');
     showAIMatches();
   });
+  document.querySelector('.ai-panel').scrollTop = scrollTop;
+  const returnButton = [...document.querySelectorAll('[data-review]')].find(button => button.dataset.review === focusPair);
+  (returnButton || $('aiClose')).focus({ preventScroll: true });
 }
 
 function showFinish() {
