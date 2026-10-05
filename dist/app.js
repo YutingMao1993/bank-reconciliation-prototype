@@ -16,7 +16,7 @@ const items = [
   { id: 'l7', side: 'ledger', date: 'Sep 29', name: 'Office supplies check', amount: -860, ref: 'Check · #1048', kind: 'check' }
 ];
 
-const state = { resolved: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', filter: 'open', history: [], activity: [], completed: false, toastTimer: null };
+const state = { resolved: {}, followUps: {}, rejectedPairs: new Set(), selected: 'b1', tab: 'open', filter: 'open', history: [], activity: [], completed: false, toastTimer: null };
 const $ = id => document.getElementById(id);
 const money = amount => `${amount < 0 ? '−' : ''}$${Math.abs(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const listMoney = amount => amount < 0 ? `(${money(-amount)})` : `+${money(amount)}`;
@@ -75,6 +75,7 @@ function aiFilterIds() {
 function tabItems(tab) {
   if (tab === 'resolved') return items.filter(item => !!state.resolved[item.id]);
   const open = openItems();
+  if (tab === 'follow-up') return open.filter(item => state.followUps[item.id]);
   if (tab === 'suggested') {
     const suggestedIds = aiFilterIds();
     return open.filter(item => suggestedIds.has(item.id));
@@ -107,19 +108,26 @@ function evidence(s) {
   return `Exact amount · ${date}${s.shared.length ? ` · Related description: ${s.shared.join(', ')}` : ' · Descriptions differ; inspect both records'}`;
 }
 
-function resolve(ids, action, label, origin = 'Manual review', note = '') {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
+function saveHistory() {
+  state.history.push({ resolved: { ...state.resolved }, followUps: { ...state.followUps }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
+}
+
+function resolve(ids, action, label, origin = 'Manual review', note = '', details = {}) {
+  saveHistory();
   state.completed = false;
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  ids.forEach(id => state.resolved[id] = { action, label, time, origin, note });
-  state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note });
+  ids.forEach(id => {
+    state.resolved[id] = { action, label, time, origin, note, ...details };
+    delete state.followUps[id];
+  });
+  state.activity.unshift({ label, origin, time, actor: 'Maya Chen', note, ...details });
   selectNextInTab();
   render();
   toast(label, true);
 }
 
 function rejectSuggestion(suggestion, selectedId) {
-  state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
+  saveHistory();
   state.rejectedPairs.add(pairKey(suggestion.bank.id, suggestion.ledger.id));
   const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   state.activity.unshift({ label: `Rejected suggested match: ${suggestion.bank.name} ↔ ${suggestion.ledger.name}`, origin: 'AI suggested · Maya rejected', time, actor: 'Maya Chen', note: '' });
@@ -136,6 +144,7 @@ function undoLast() {
   const previous = state.history.pop();
   if (!previous) return;
   state.resolved = previous.resolved;
+  state.followUps = previous.followUps;
   state.rejectedPairs = previous.rejectedPairs;
   state.activity = previous.activity;
   state.tab = previous.tab;
@@ -168,7 +177,7 @@ function balanceSnapshot() {
 
 function renderActivity() {
   $('activityCount').textContent = `${state.activity.length} action${state.activity.length === 1 ? '' : 's'}`;
-  $('activityList').innerHTML = state.activity.length ? state.activity.map(entry => `<div class="activity-row"><div><strong>${escapeHTML(entry.label)}</strong><br><span>${escapeHTML(entry.actor)} · ${escapeHTML(entry.origin)}</span>${entry.note ? `<p class="activity-note">Note: ${escapeHTML(entry.note)}</p>` : ''}</div><span>${entry.time}</span></div>`).join('') : '<div class="empty-activity">Actions will appear here as you review items.</div>';
+  $('activityList').innerHTML = state.activity.length ? state.activity.map(entry => `<div class="activity-row"><div><strong>${escapeHTML(entry.label)}</strong><br><span>${escapeHTML(entry.actor)} · ${escapeHTML(entry.origin)}</span>${entry.note ? `<p class="activity-note">Note: ${escapeHTML(entry.note)}</p>` : ''}${recordDetails(entry)}</div><span>${entry.time}</span></div>`).join('') : '<div class="empty-activity">Actions will appear here as you review items.</div>';
 }
 
 function render() {
@@ -193,6 +202,7 @@ function render() {
   $('suggestedFilterLabel').textContent = 'AI Suggested';
   $('bankOnlyTabCount').textContent = tabItems('bank-only').length;
   $('ledgerOnlyTabCount').textContent = tabItems('ledger-only').length;
+  $('followUpCount').textContent = tabItems('follow-up').length;
   $('resolvedTabCount').textContent = resolved;
   $('aiMatchBtn').textContent = `✦ AI Suggestions · ${suggestions.length}`;
   $('aiMatchBtn').disabled = open.length === 0;
@@ -227,6 +237,7 @@ function render() {
 
 function rowBadge(item) {
   if (state.resolved[item.id]) return state.resolved[item.id].action === 'timing' ? 'Carry Forward' : state.resolved[item.id].action === 'exclude' ? 'Excluded' : 'Resolved';
+  if (state.followUps[item.id]) return 'Follow-up Needed';
   const suggestion = suggestionFor(item);
   if (suggestion) return suggestion.adjustment ? 'Review Adjustment' : 'AI Suggested';
   if (item.kind) return item.side === 'bank' ? 'Create Entry' : item.amount < 0 ? 'Outstanding' : 'In Transit';
@@ -262,12 +273,12 @@ function renderDetail() {
     <div class="facts"><div class="fact"><span>Date</span><strong>${item.date}, 2026</strong></div><div class="fact"><span>Reference</span><strong>${item.ref}</strong></div><div class="fact"><span>Account</span><strong>Operating ·•• 4821</strong></div></div><div class="rule"></div>`;
   if (state.resolved[item.id]) {
     const result = state.resolved[item.id];
-    body += `<div class="resolved-card"><strong>${result.action === 'timing' ? '↗ Carry Forward' : '✓ Resolved'} · ${escapeHTML(result.label)}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : result.action === 'exclude' ? 'Excluded from this review with a recorded reason. No balance adjustment was made.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'This timing item remains open for next-period follow-up; it has not cleared the bank.'}${result.note ? `<div class="resolved-note">Note: ${escapeHTML(result.note)}</div>` : ''}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo Last Action</button></div>`;
+    body += `<div class="resolved-card"><strong>${result.action === 'timing' ? '↗ Carry Forward' : '✓ Resolved'} · ${escapeHTML(result.label)}</strong><br>Reviewed by Maya Chen at ${result.time}. ${result.action === 'adjustment' ? 'Both sides were matched and a $290.00 processing fee was recorded in this demo.' : result.action === 'match' ? 'Both sides were cleared together.' : result.action === 'exclude' ? 'Excluded from this review with a recorded reason. No balance adjustment was made.' : item.side === 'bank' ? 'A corresponding ledger entry was added in this demo.' : 'This timing item remains open for next-period follow-up; it has not cleared the bank.'}${result.note ? `<div class="resolved-note">Note: ${escapeHTML(result.note)}</div>` : ''}${recordDetails(result)}${result.journal ? journalPreview(result.journal, result.entryDate) : ''}</div><div class="actionrow"><button class="ghost" id="undoDetail" type="button">Undo Last Action</button></div>`;
   } else if (partner && suggestion.adjustment) {
     body += `<div class="section-title">✦ AI Suggestion <span class="signal adjust" style="margin-left:7px">Needs Adjustment</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank Statement' : 'General Ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
       <div class="rule"></div><div class="section-title">Review Proposed Fee Entry</div><div class="adjustment-box"><strong>Possible Net Deposit</strong><p>The $290.00 difference may be a processing fee. Verify it against the payout report before confirming.</p><div class="balance-preview"><span>Gross Ledger Receipt</span><span>$12,770.75</span></div><div class="balance-preview"><span>Proposed Processing Fee</span><span>−$290.00</span></div><div class="balance-preview"><span>Bank Deposit</span><span>$12,480.75</span></div></div>
-      <div class="formline fee-account"><span id="adjustmentAccountLabel">Fee Account</span><div class="category-picker"><button class="category-trigger" id="adjustmentAccountTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="adjustmentAccountOptions" aria-labelledby="adjustmentAccountLabel adjustmentAccountValue"><span id="adjustmentAccountValue">Payment processing fees</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="adjustmentAccountOptions" role="listbox" aria-labelledby="adjustmentAccountLabel" hidden><button class="category-option" type="button" role="option" aria-selected="true" data-value="Payment processing fees">Payment processing fees</button><button class="category-option" type="button" role="option" aria-selected="false" data-value="Needs further review">Needs further review</button></div><input id="adjustmentAccount" type="hidden" value="Payment processing fees"></div></div><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Match + Record $290 Fee</button><button class="ghost" id="findMatchBtn" type="button">Find Another Match</button><button class="ghost" id="notMatchBtn" type="button">Not a Match</button></div><p class="info">Demo action only. This does not post to a real ledger.</p>`;
+      <p class="info">No payout report is attached. Record your supporting reference after checking the report, or add a follow-up below.</p><div class="actionrow"><button class="primary" id="adjustBtn" type="button">Review &amp; Record Fee</button><button class="ghost" id="findMatchBtn" type="button">Find Another Match</button><button class="ghost" id="notMatchBtn" type="button">Not a Match</button></div>`;
   } else if (partner) {
     body += `<div class="section-title">✦ AI Match Suggestion <span class="signal ${suggestion.score < 90 ? 'review' : ''}" style="margin-left:7px">${suggestion.strength}</span></div>
       <div class="candidate"><div class="candidate-top"><div><strong>${partner.name}</strong><p>${partner.side === 'bank' ? 'Bank Statement' : 'General Ledger'} · ${partner.date} · ${partner.ref}</p></div><div class="candidate-amount">${money(partner.amount)}</div></div><div class="candidate-evidence">${evidence(suggestion)}</div></div>
@@ -278,13 +289,19 @@ function renderDetail() {
   } else {
     body += `${rejectedFor(item) ? '<p class="rejected-info">AI suggestion marked “Not a match.” Search for another bank transaction before carrying this forward.</p>' : ''}<div class="section-title resolve-kicker">Resolve This Item</div><div class="resolution-actions"><button class="resolution-button" id="findMatchBtn" type="button">Find Bank Match</button><button class="resolution-button" id="openOutstandingBtn" type="button">${item.amount > 0 ? 'Mark Deposit in Transit' : 'Mark as Outstanding'}</button><button class="resolution-button danger" id="openExcludeBtn" type="button">Exclude</button></div><p class="info">This item will carry forward if marked as a timing difference.</p>`;
   }
+  if (!state.resolved[item.id]) body += followUpCard(item);
   $('detailBody').innerHTML = body;
-  if ($('matchBtn')) $('matchBtn').onclick = () => resolve([item.id, partner.id], 'match', `Matched ${item.name} with ${partner.name}`, 'AI suggested · Maya confirmed');
-  if ($('adjustmentAccount')) bindCategoryPicker('adjustmentAccount');
-  if ($('adjustBtn')) $('adjustBtn').onclick = () => {
-    if ($('adjustmentAccount').value === 'Needs further review') { toast('Choose a fee account before confirming'); return; }
-    resolve([item.id, partner.id], 'adjustment', `Matched Stripe payout and recorded $290.00 processing fee`, 'AI suggested · Maya verified adjustment');
+  if ($('followUpBtn')) $('followUpBtn').onclick = () => showFollowUp(item);
+  if ($('clearFollowUpBtn')) $('clearFollowUpBtn').onclick = () => {
+    saveHistory();
+    delete state.followUps[item.id];
+    state.activity.unshift({ label: `Cleared follow-up flag: ${item.name}`, origin: 'Transaction remains open', actor: 'Maya Chen', time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), note: '' });
+    if (state.filter === 'follow-up') selectNextInTab();
+    render();
+    toast('Follow-up flag cleared. Transaction remains open.', true);
   };
+  if ($('matchBtn')) $('matchBtn').onclick = () => resolve([item.id, partner.id], 'match', `Matched ${item.name} with ${partner.name}`, 'AI suggested · Maya confirmed');
+  if ($('adjustBtn')) $('adjustBtn').onclick = () => showAdjustment(suggestion);
   if ($('findMatchBtn')) $('findMatchBtn').onclick = () => showManualMatch(item);
   if ($('notMatchBtn')) $('notMatchBtn').onclick = () => rejectSuggestion(suggestion, item.id);
   if ($('openEntryBtn')) $('openEntryBtn').onclick = () => showCreateEntry(item);
@@ -402,17 +419,84 @@ function bindCategoryPicker(id, onChange = () => {}) {
   });
 }
 
+function journalLines(amount, category) {
+  const cash = 'Operating Account · 4821';
+  return [
+    { account: amount < 0 ? category : cash, debit: Math.abs(amount), credit: 0 },
+    { account: amount < 0 ? cash : category, debit: 0, credit: Math.abs(amount) }
+  ];
+}
+
+function journalPreview(lines, date) {
+  return `<section class="journal-preview" aria-label="Journal Entry Preview"><h3>Journal Entry Preview</h3><p>Entry date: ${escapeHTML(date)} · USD</p><table><thead><tr><th scope="col">Account</th><th scope="col">Debit</th><th scope="col">Credit</th></tr></thead><tbody>${lines.map(line => `<tr><th scope="row">${escapeHTML(line.account)}</th><td>${line.debit ? money(line.debit) : '—'}</td><td>${line.credit ? money(line.credit) : '—'}</td></tr>`).join('')}</tbody></table></section>`;
+}
+
+function recordDetails(record) {
+  return `<div class="record-details">${record.supportingRef ? `<p><strong>Supporting Reference</strong> ${escapeHTML(record.supportingRef)}</p>` : ''}${record.expectedDate ? `<p><strong>Expected Clearing Date</strong> ${escapeHTML(record.expectedDate)}</p>` : ''}${record.owner ? `<p><strong>Follow-up Owner</strong> ${escapeHTML(record.owner)}</p>` : ''}${record.dueDate ? `<p><strong>Follow-up Date</strong> ${escapeHTML(record.dueDate)}</p>` : ''}</div>`;
+}
+
+function followUpCard(item) {
+  const followUp = state.followUps[item.id];
+  return `<section class="evidence-card"><h3>${followUp ? 'Follow-up Needed' : 'Missing Supporting Evidence?'}</h3>${followUp ? `<p>${escapeHTML(followUp.note)}</p>${recordDetails(followUp)}` : '<p>Keep this transaction open while you obtain the records needed to explain it.</p>'}<button class="ghost" id="followUpBtn" type="button">${followUp ? 'Edit Follow-up' : 'Add Follow-up'}</button>${followUp ? '<button class="text-action" id="clearFollowUpBtn" type="button">Clear Follow-up Flag</button>' : ''}</section>`;
+}
+
+function saveFollowUp(item, details) {
+  saveHistory();
+  const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  state.followUps[item.id] = { ...details };
+  state.activity.unshift({ label: `Saved follow-up: ${item.name}`, origin: 'Evidence pending · transaction remains open', time, actor: 'Maya Chen', ...details });
+  closeModal();
+  render();
+  toast('Follow-up saved. Transaction remains open.', true);
+}
+
+function showFollowUp(item) {
+  const current = state.followUps[item.id] || {};
+  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="followUpForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Follow Up on Evidence</h2><p class="task-subtitle">${escapeHTML(item.name)} · ${money(item.amount)}</p><p class="task-explanation">Record what is missing and who will follow up. This item stays in Open and continues to block final review.</p><label class="task-field" for="followUpNote">Evidence or Next Step<textarea id="followUpNote" maxlength="300" required placeholder="e.g. Obtain the payout report and verify the processing fee">${escapeHTML(current.note || '')}</textarea></label><div class="field-pair"><label class="task-field" for="followUpOwner">Owner<input id="followUpOwner" maxlength="80" required value="${escapeHTML(current.owner || 'Maya Chen')}" /></label><label class="task-field" for="followUpDate">Follow-up Date<input id="followUpDate" type="date" min="2026-10-01" required value="${escapeHTML(current.dueDate || '')}" /></label></div><p class="task-hint">Saved in this demo session only. No notification is sent.</p><div class="task-actions"><button class="primary" type="submit">Save Follow-up</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></form></div>`;
+  $('followUpForm').onsubmit = event => {
+    event.preventDefault();
+    const note = $('followUpNote').value.trim();
+    const owner = $('followUpOwner').value.trim();
+    if (!note || !owner || !$('followUpForm').reportValidity()) return;
+    saveFollowUp(item, { note, owner, dueDate: $('followUpDate').value });
+  };
+  $('cancelTaskModal').onclick = closeModal;
+  $('followUpNote').focus();
+}
+
+function showAdjustment(suggestion) {
+  const { bank, ledger, difference } = suggestion;
+  const lines = journalLines(-difference, 'Payment processing fees');
+  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="adjustmentForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Verify &amp; Record Fee</h2><p class="task-subtitle">${escapeHTML(bank.name)} · ${money(difference)} proposed fee</p><p class="task-explanation">No payout report is attached. Obtain the report from your payment processor and verify the payout identity, gross receipts, fee, and net deposit.</p><div class="adjustment-box"><div class="balance-preview"><span>Gross Receipts</span><span>${money(ledger.amount)}</span></div><div class="balance-preview"><span>Processing Fee</span><span>${money(-difference)}</span></div><div class="balance-preview"><span>Net Deposit</span><span>${money(bank.amount)}</span></div></div><label class="task-field" for="payoutReference">Supporting Report Reference<input id="payoutReference" required maxlength="200" placeholder="Report ID, document reference, or URL" /></label>${journalPreview(lines, `${bank.date}, 2026`)}<p class="task-hint">Reduces ledger cash by ${money(difference)} and matches both transactions.</p><label class="review-confirm"><input id="payoutVerified" type="checkbox" required /> I verified the payout identity and all three amounts against the supporting report.</label><div class="task-actions"><button class="primary" id="confirmAdjustment" type="submit" disabled>Match + Record ${money(difference)} Fee</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div><button class="text-action" id="adjustmentFollowUp" type="button">Report Missing? Save a Follow-up</button><p class="task-hint">Demo entry only. A reference records your verification; this demo does not retrieve or validate documents.</p></form></div>`;
+  const update = () => $('confirmAdjustment').disabled = !$('payoutReference').value.trim() || !$('payoutVerified').checked;
+  $('payoutReference').oninput = update;
+  $('payoutVerified').onchange = update;
+  $('adjustmentForm').onsubmit = event => {
+    event.preventDefault();
+    const supportingRef = $('payoutReference').value.trim();
+    if (!supportingRef || !$('payoutVerified').checked || !$('adjustmentForm').reportValidity()) return;
+    resolve([bank.id, ledger.id], 'adjustment', `Matched Stripe payout and recorded ${money(difference)} processing fee`, 'Maya verified payout report', '', { supportingRef, journal: lines, entryDate: `${bank.date}, 2026` });
+    closeModal();
+  };
+  $('adjustmentFollowUp').onclick = () => showFollowUp(bank);
+  $('cancelTaskModal').onclick = closeModal;
+  $('payoutReference').focus();
+}
+
 function showCreateEntry(item) {
   const suggested = item.kind === 'fee' ? 'Bank fees' : item.kind === 'interest' ? 'Interest income' : item.amount < 0 ? 'Operating expense' : 'Other income';
   const other = item.amount < 0 ? 'Other operating expense' : 'Revenue';
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><div class="task-field"><span id="entryCategoryLabel">Category</span><div class="category-picker"><button class="category-trigger" id="entryCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="entryCategoryLabel entryCategoryValue"><span id="entryCategoryValue">Select a category...</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="entryCategoryOptions" role="listbox" aria-labelledby="entryCategoryLabel" hidden><button class="category-option" type="button" role="option" aria-selected="false" data-value="${suggested}">${suggested}<span class="category-suggested">Suggested</span></button><button class="category-option" type="button" role="option" aria-selected="false" data-value="${other}">${other}</button></div><input id="entryCategory" type="hidden" value=""></div></div><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
+  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">Create Ledger Entry</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><div class="task-field"><span id="entryCategoryLabel">Category</span><div class="category-picker"><button class="category-trigger" id="entryCategoryTrigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="entryCategoryLabel entryCategoryValue"><span id="entryCategoryValue">Select a category...</span><span class="category-chevron" aria-hidden="true"></span></button><div class="category-options" id="entryCategoryOptions" role="listbox" aria-labelledby="entryCategoryLabel" hidden><button class="category-option" type="button" role="option" aria-selected="false" data-value="${suggested}">${suggested}<span class="category-suggested">Suggested</span></button><button class="category-option" type="button" role="option" aria-selected="false" data-value="${other}">${other}</button></div><input id="entryCategory" type="hidden" value=""></div></div><div id="entryPreview" aria-live="polite"><p class="task-hint">Select a category to preview the debit and credit.</p></div><label class="task-field" for="entryNote">Note<textarea id="entryNote" maxlength="300" placeholder="Optional note"></textarea></label><p class="task-hint">Creates a matching entry in this demo. No real ledger is connected.</p><div class="task-actions"><button class="primary" id="confirmEntryBtn" type="button" disabled>Create &amp; Clear</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
   const trigger = $('entryCategoryTrigger');
-  bindCategoryPicker('entryCategory', () => { $('confirmEntryBtn').disabled = false; });
+  bindCategoryPicker('entryCategory', () => {
+    $('confirmEntryBtn').disabled = false;
+    $('entryPreview').innerHTML = journalPreview(journalLines(item.amount, $('entryCategory').value), `${item.date}, 2026`) + `<p class="task-hint">${item.amount < 0 ? 'Reduces' : 'Increases'} ledger cash by ${money(Math.abs(item.amount))} and clears this bank transaction.</p>`;
+  });
   $('confirmEntryBtn').onclick = () => {
     const category = $('entryCategory').value;
     if (!category) return;
     const note = $('entryNote').value.trim();
-    resolve([item.id], 'entry', `Created ledger entry in ${category}`, 'Bank statement · Maya confirmed category', note);
+    resolve([item.id], 'entry', `Created ledger entry in ${category}`, 'Bank statement · Maya confirmed category', note, { journal: journalLines(item.amount, category), entryDate: `${item.date}, 2026` });
     closeModal();
   };
   $('cancelTaskModal').onclick = closeModal;
@@ -422,14 +506,21 @@ function showCreateEntry(item) {
 function showOutstanding(item) {
   const deposit = item.amount > 0;
   const title = deposit ? 'Mark Deposit in Transit' : 'Mark as Outstanding';
-  $('modalMount').innerHTML = `<div class="final-overlay" role="presentation"><div class="task-modal" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${item.name} — ${money(item.amount)}</p><p class="task-explanation">This entry will be carried forward to next month's reconciliation as ${deposit ? 'a deposit in transit' : 'an outstanding item'}.</p><label class="task-field" for="outstandingNote">Note<textarea id="outstandingNote" maxlength="300" placeholder="${deposit ? 'e.g. Deposit submitted Sep 30; expect to clear Oct 2' : 'e.g. Check mailed Sep 30; expect to clear Oct 5'}"></textarea></label><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="button">${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div></div></div>`;
-  $('confirmOutstandingBtn').onclick = () => {
+  $('modalMount').innerHTML = `<div class="final-overlay"><form class="task-modal" id="timingForm" role="dialog" aria-modal="true" aria-labelledby="taskTitle"><h2 id="taskTitle">${title}</h2><p class="task-subtitle">${escapeHTML(item.name)} — ${money(item.amount)}</p><p class="task-explanation">Verify ${deposit ? 'the deposit submission' : 'the payment was issued and remains uncleared'} before carrying this item into October. No new journal entry will be created.</p><label class="task-field" for="timingReference">Supporting Reference<input id="timingReference" maxlength="200" required placeholder="${deposit ? 'Deposit confirmation or receipt reference' : 'Payment confirmation or check register reference'}" /></label><label class="task-field" for="timingDate">Expected Clearing Date<input id="timingDate" type="date" min="2026-10-01" required /></label><label class="task-field" for="outstandingNote">Note (Optional)<textarea id="outstandingNote" maxlength="300" placeholder="Add context for next month's review"></textarea></label><p class="task-hint">Follow-up owner: Maya Chen. This remains a carry-forward item until it clears the bank.</p><div class="task-actions"><button class="primary" id="confirmOutstandingBtn" type="submit" disabled>${deposit ? 'Mark Deposit in Transit' : 'Mark Outstanding'}</button><button class="ghost" id="cancelTaskModal" type="button">Cancel</button></div><button class="text-action" id="timingFollowUp" type="button">Evidence Missing? Save a Follow-up</button></form></div>`;
+  const update = () => $('confirmOutstandingBtn').disabled = !$('timingReference').value.trim() || !$('timingDate').value || !$('timingDate').validity.valid;
+  $('timingReference').oninput = update;
+  $('timingDate').oninput = update;
+  $('timingForm').onsubmit = event => {
+    event.preventDefault();
+    if (!$('timingForm').reportValidity() || !$('timingReference').value.trim()) return;
     const note = $('outstandingNote').value.trim();
-    resolve([item.id], 'timing', `${deposit ? 'Carried deposit in transit' : 'Carried outstanding check'} to October 2026`, 'Maya explained timing difference', note);
+    const details = { supportingRef: $('timingReference').value.trim(), expectedDate: $('timingDate').value, owner: 'Maya Chen' };
+    resolve([item.id], 'timing', `${deposit ? 'Carried deposit in transit' : 'Carried outstanding check'} to October 2026`, 'Maya documented timing evidence', note, details);
     closeModal();
   };
+  $('timingFollowUp').onclick = () => showFollowUp(item);
   $('cancelTaskModal').onclick = closeModal;
-  $('outstandingNote').focus();
+  $('timingReference').focus();
 }
 
 function showExclude(item) {
@@ -503,7 +594,7 @@ function reviewList(action) {
   return `<ul class="approval-list">${rows.map(item => {
     const result = state.resolved[item.id];
     const amount = action === 'adjustment' ? -290 : item.amount;
-    return `<li><div><strong>${escapeHTML(item.name)}</strong><p>${escapeHTML(result.label)}</p>${result.note ? `<p class="approval-note">Note: ${escapeHTML(result.note)}</p>` : ''}</div><span>${money(amount)}</span></li>`;
+    return `<li><div><strong>${escapeHTML(item.name)}</strong><p>${escapeHTML(result.label)}</p>${result.note ? `<p class="approval-note">Note: ${escapeHTML(result.note)}</p>` : ''}${recordDetails(result)}${result.journal ? journalPreview(result.journal, result.entryDate) : ''}</div><span>${money(amount)}</span></li>`;
   }).join('')}</ul>`;
 }
 
@@ -534,7 +625,7 @@ function renderReviewPage() {
   };
   $('confirmReview').onclick = () => {
     if (state.completed || !$('reviewCheck').checked || openItems().length || balanceSnapshot().differenceCents !== 0) return;
-    state.history.push({ resolved: { ...state.resolved }, rejectedPairs: new Set(state.rejectedPairs), activity: [...state.activity], tab: state.tab, filter: state.filter, selected: state.selected, completed: state.completed });
+    saveHistory();
     state.completed = true;
     state.activity.unshift({ label: 'Approved reconciliation (demo)', origin: 'Final review · Maya approved', time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }), actor: 'Maya Chen', note: '', kind: 'approval' });
     render();
@@ -597,6 +688,7 @@ document.querySelectorAll('.filter-pill').forEach(button => button.onclick = () 
 });
 $('resetBtn').onclick = () => {
   state.resolved = {};
+  state.followUps = {};
   state.rejectedPairs = new Set();
   state.history = [];
   state.activity = [];
